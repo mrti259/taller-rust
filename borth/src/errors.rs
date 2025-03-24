@@ -1,6 +1,10 @@
 #[derive(Debug)]
 pub enum BorthError {
-    RuntimeError,
-    ExportError,
+    MissingArguments,
+    TooManyArguments,
     BadArguments,
+    CanNotReadFile,
+    CanNotReadCode,
+    CanNotWriteFile,
+    RuntimeError,
 }

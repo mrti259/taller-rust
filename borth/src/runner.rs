@@ -24,7 +24,7 @@ impl Runner {
         match std::fs::File::open(&self.path) {
             Ok(mut file) => {
                 if file.read_to_string(&mut code).is_err() {
-                    return Err(BorthError::RuntimeError);
+                    return Err(BorthError::CanNotReadCode);
                 }
 
                 let mut interpreter = Interpreter::with_stack_size(self.stack_size);
@@ -32,14 +32,18 @@ impl Runner {
                 interpreter.export_stack_to("stack.fth")?;
                 Ok(())
             }
-            _ => Err(BorthError::RuntimeError),
+            _ => Err(BorthError::CanNotReadFile),
         }
     }
 }
 
 fn parse_args(args: &[String]) -> Result<(String, Option<usize>), BorthError> {
-    if !(2..4).contains(&args.len()) {
-        return Err(BorthError::BadArguments);
+    let len = args.len();
+    if len < 2 {
+        return Err(BorthError::MissingArguments);
+    }
+    if len > 3 {
+        return Err(BorthError::TooManyArguments);
     }
     let path = args[1].to_string();
     if args.len() <= 2 {

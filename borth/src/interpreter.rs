@@ -16,8 +16,11 @@ impl Interpreter {
     }
 
     pub fn run_code(&mut self, code: &str) -> Result<(), BorthError> {
-        let tokens = code.split(" ");
-        for token in tokens {
+        let code = code.replace(" ", "\n");
+        for token in code.lines() {
+            if token.is_empty() {
+                continue;
+            }
             if let Some(operator) = self.detect_operation(token) {
                 operator.operate(&mut self.stack);
             } else if let Ok(value) = token.parse::<i16>() {
@@ -37,11 +40,13 @@ impl Interpreter {
                     value.push(' ');
                 }
                 if file.write(value.as_bytes()).is_err() {
-                    return Err(BorthError::ExportError);
+                    return Err(BorthError::CanNotWriteFile);
                 }
             }
+            Ok(())
+        } else {
+            Err(BorthError::CanNotWriteFile)
         }
-        Ok(())
     }
 
     fn detect_operation(&self, token: &str) -> Option<Operator> {
@@ -117,5 +122,12 @@ mod tests {
         let mut forth = create_interpreter();
         assert!(forth.run_code("1 2 3 UNKNOWN + 4 5 6 + ").is_err());
         assert_eq!(forth.stack, [1, 2, 3]);
+    }
+
+    #[test]
+    fn ignore_whitespaces() {
+        let mut forth = create_interpreter();
+        assert!(forth.run_code("1 2\n\n 3\n \n4\n 5            6").is_ok());
+        assert_eq!(forth.stack, [1, 2, 3, 4, 5, 6]);
     }
 }
