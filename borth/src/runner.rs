@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::interpreter::*;
+use crate::interpreter::Interpreter;
 use std::io::Read;
 
 pub struct Runner {
@@ -8,7 +8,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn from_args(args: &[String]) -> Result<Self, BorthError> {
+    pub fn from_args(args: &[String]) -> BorthResult<Self> {
         match parse_args(args) {
             Err(error) => Err(error),
             Ok((path, Some(stack_size))) => Ok(Self { path, stack_size }),
@@ -19,7 +19,7 @@ impl Runner {
         }
     }
 
-    pub fn start(&self) -> Result<(), BorthError> {
+    pub fn start(&self) -> BorthResult<()> {
         let mut code = String::new();
         match std::fs::File::open(&self.path) {
             Ok(mut file) => {
@@ -28,16 +28,17 @@ impl Runner {
                 }
 
                 let mut interpreter = Interpreter::with_stack_size(self.stack_size);
-                interpreter.run_code(&code)?;
-                interpreter.export_stack_to("stack.fth")?;
-                Ok(())
+                let code_result = interpreter.run_code(&code);
+                let export_result = interpreter.export_stack_to("stack.fth");
+
+                code_result.and(export_result)
             }
             _ => Err(BorthError::CanNotReadFile),
         }
     }
 }
 
-fn parse_args(args: &[String]) -> Result<(String, Option<usize>), BorthError> {
+fn parse_args(args: &[String]) -> BorthResult<(String, Option<usize>)> {
     let len = args.len();
     if len < 2 {
         return Err(BorthError::MissingArguments);
@@ -63,7 +64,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn expect_filename_in_args() {
+    fn test1_expect_filename_in_args() {
         let mut args = Vec::from(["forth".into()]);
         assert!(parse_args(&args).is_err());
 
@@ -72,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_stack_size() {
+    fn test2_parse_stack_size() {
         let mut args = Vec::from(["forth".into()]);
         args.push("ruta/a/main.fth".into());
         args.push("--stack-size=10".into());
@@ -81,7 +82,7 @@ mod tests {
     }
 
     #[test]
-    fn stack_size_is_optional() {
+    fn test3_stack_size_is_optional() {
         let mut args = Vec::from(["forth".into()]);
         args.push("ruta/a/main.fth".into());
 

@@ -1,14 +1,23 @@
 use std::fmt::Display;
 
+pub type BorthResult<T> = Result<T, BorthError>;
+
 #[derive(Debug)]
 pub enum BorthError {
+    // Common errors:
+    StackUnderflow,
+    // StackOverflow,
+    // InvalidWord,
+    // DivisionByZero,
+    UnknownWord,
+
+    // Custom errors:
     MissingArguments,
     TooManyArguments,
     BadArguments,
     CanNotReadFile,
     CanNotReadCode,
     CanNotWriteFile,
-    RuntimeError,
 }
 
 impl Display for BorthError {
@@ -16,8 +25,11 @@ impl Display for BorthError {
         if f.alternate() {
             write!(f, "{:?}", self)
         } else {
-            let name = format!("{:#}", self);
-            f.write_str(&to_kebabcase(name))
+            let name = match self {
+                Self::UnknownWord => "?".into(),
+                _ => to_kebabcase(format!("{:#?}", self)),
+            };
+            f.write_str(&name)
         }
     }
 }
