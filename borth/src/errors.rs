@@ -26,10 +26,10 @@ impl Display for BorthError {
             write!(f, "{:?}", self)
         } else {
             let name = match self {
-                Self::UnknownWord => "?".into(),
-                _ => to_kebabcase(format!("{:#?}", self)),
+                Self::UnknownWord => "?",
+                _ => &to_kebabcase(format!("{:#?}", self)),
             };
-            f.write_str(&name)
+            f.write_str(name)
         }
     }
 }
@@ -46,4 +46,19 @@ fn to_kebabcase(str: String) -> String {
         .collect::<String>()
         .trim_start_matches("-")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test1_display_error_in_kebabcase() {
+        assert_eq!(BorthError::StackUnderflow.to_string(), "stack-underflow");
+    }
+
+    #[test]
+    fn test2_display_unknown_word_as_question_mark() {
+        assert_eq!(BorthError::UnknownWord.to_string(), "?");
+    }
 }
