@@ -3,10 +3,9 @@
 - [x] Aritmética de enteros: +, -, \*, /.
 - [x] Manipulación de stack: DUP, DROP, SWAP, OVER, ROT.
 - [ ] Definición de words.
-- [ ] Generación de output: ., EMIT, CR, ." ".
+- [x] Generación de output: ., EMIT, CR, ." ".
 - [x] Operaciones booleanas: =, <, >, AND, OR, NOT.
 - [ ] Evaluación de condicionales: IF ... THEN, IF ... ELSE ... THEN.
-- [ ] Aclaracion: IF consume el ultimo elemento del stack.
 
 ## Manejo de errores:
 
@@ -14,6 +13,6 @@
 - [ ] stack-overflow: cuando una operación intenta pushear un elemento a una pila que se encuentra en su capacidad máxima de memoria.
 - [ ] invalid-word: cuando se trata de definir una word invalida, por ejemplo: : 1 1 ;.
 - [ ] division-by-zero: cuando se trata de dividir por cero.
-- [ ] ?: cuando el interprete no puede hallar la definición de la word evaluada.
+- [x] ?: cuando el interprete no puede hallar la definición de la word evaluada.
 - [x] En estos casos, el mensaje de error debe ser tal cual el especificado previamente.
 - [x] En caso de otros errores que no pertenezcan a ninguna de estas categorías, se debera imprimir un error custom descriptivo.

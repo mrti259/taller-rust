@@ -1,17 +1,19 @@
 use crate::errors::*;
-use std::{fs::File, io::Write};
+use std::{fmt::Display, fs::File, io::Write};
 
-type StackElementType = i32;
+type StackElementType = i16;
 type Stack = Vec<StackElementType>;
 
-pub struct Interpreter {
+pub struct Interpreter<Writer: Write> {
     stack: Stack,
+    writer: Writer,
 }
 
-impl Interpreter {
-    pub fn with_stack_size(size: usize) -> Self {
+impl<Writer: Write> Interpreter<Writer> {
+    pub fn with_stack_size(size: usize, writer: Writer) -> Self {
         Self {
             stack: Vec::with_capacity(size),
+            writer,
         }
     }
 
@@ -33,35 +35,81 @@ impl Interpreter {
     }
 
     pub fn run_code(&mut self, code: &str) -> BorthResult<()> {
-        let code = code.replace(" ", "\n");
-        for token in code.lines() {
-            match token.trim().to_uppercase().as_str() {
-                "" => continue,
-                "+" => self.sum(),
-                "-" => self.sub(),
-                "*" => self.prod(),
-                "/" => self.div(),
-                "DUP" => self.dup(),
-                "DROP" => self.drop(),
-                "SWAP" => self.swap(),
-                "OVER" => self.over(),
-                "ROT" => self.rot(),
-                "=" => self.eq(),
-                "<" => self.lt(),
-                ">" => self.gt(),
-                "AND" => self.and(),
-                "OR" => self.or(),
-                "NOT" => self.not(),
-                "." => todo!(),
-                "EMIT" => todo!(),
-                "CR" => todo!(),
-                ".\"" => todo!(),
-                "\"" => todo!(),
-                "IF" => todo!(),
-                "ELSE" => todo!(),
-                "THEN" => todo!(),
-                _ => self.push(token),
-            }?;
+        let mut op_stack = Vec::<String>::new();
+        let mut stops = code.match_indices(char::is_whitespace);
+        let mut offset = 0;
+        while offset < code.len() {
+            let stop = stops.next();
+            let pos = stop.map_or(code.len(), |s| s.0);
+            let whitespace = stop.map_or("", |s| s.1);
+            if let Some(token) = code.get(offset..pos) {
+                self.detect_operation(token, whitespace, &mut op_stack)?;
+            }
+            offset = pos + 1;
+        }
+        Ok(())
+    }
+
+    fn detect_operation(
+        &mut self,
+        token: &str,
+        whitespace: &str,
+        op_stack: &mut Vec<String>,
+    ) -> BorthResult<()> {
+        if let Some(last_op) = op_stack.last() {
+            if last_op == ".\"" {
+                if token.ends_with("\"") {
+                    op_stack.pop();
+                    self.write(token.trim_end_matches("\""))?;
+                } else {
+                    self.write(token)?;
+                    self.write(whitespace)?;
+                }
+                return Ok(());
+            }
+        }
+        match token.trim().to_uppercase().as_str() {
+            "" => Ok(()),
+            "+" => self.sum(),
+            "-" => self.sub(),
+            "*" => self.prod(),
+            "/" => self.div(),
+            "DUP" => self.dup(),
+            "DROP" => self.drop(),
+            "SWAP" => self.swap(),
+            "OVER" => self.over(),
+            "ROT" => self.rot(),
+            "=" => self.eq(),
+            "<" => self.lt(),
+            ">" => self.gt(),
+            "AND" => self.and(),
+            "OR" => self.or(),
+            "NOT" => self.not(),
+            "." => {
+                let element = self.pop()?;
+                self.write(element)
+            }
+            "EMIT" => {
+                let element = self.pop()?;
+                let ascii = char::from_u32(element as u32).ok_or(BorthError::RuntimeError)?;
+                self.write(ascii)
+            }
+            "CR" => self.write("\n"),
+            ".\"" => {
+                op_stack.push(token.to_string());
+                Ok(())
+            }
+            "\"" => todo!(),
+            "IF" => todo!(),
+            "ELSE" => todo!(),
+            "THEN" => todo!(),
+            _ => self.push(token),
+        }
+    }
+
+    fn write<T: Display>(&mut self, sth: T) -> BorthResult<()> {
+        if write!(self.writer, "{}", sth).is_err() {
+            return Err(BorthError::CanNotWriteToOutput);
         }
         Ok(())
     }
@@ -81,45 +129,41 @@ impl Interpreter {
     }
 
     fn sum(&mut self) -> BorthResult<()> {
-        let mut sum = self.pop()?;
-        while let Ok(element) = self.pop() {
-            sum += element;
-        }
-        self.stack.push(sum);
+        let element1 = self.pop()?;
+        let element2 = self.pop()?;
+        let result = element1 + element2;
+        self.stack.push(result);
         Ok(())
     }
 
     fn sub(&mut self) -> BorthResult<()> {
-        let mut sub = self.pop()?;
-        while let Ok(element) = self.pop() {
-            sub -= element;
-        }
-        self.stack.push(sub);
+        let element1 = self.pop()?;
+        let element2 = self.pop()?;
+        let result = element1 - element2;
+        self.stack.push(result);
         Ok(())
     }
 
     fn prod(&mut self) -> BorthResult<()> {
-        let mut prod = self.pop()?;
-        while let Ok(element) = self.pop() {
-            prod *= element;
-        }
-        self.stack.push(prod);
+        let element1 = self.pop()?;
+        let element2 = self.pop()?;
+        let result = element1 * element2;
+        self.stack.push(result);
         Ok(())
     }
 
     fn div(&mut self) -> BorthResult<()> {
-        let mut div = self.pop()?;
-        while let Ok(element) = self.pop() {
-            div /= element;
-        }
-        self.stack.push(div);
+        let element1 = self.pop()?;
+        let element2 = self.pop()?;
+        let result = element1 / element2;
+        self.stack.push(result);
         Ok(())
     }
 
     fn dup(&mut self) -> BorthResult<()> {
-        let el = self.pop()?;
-        self.stack.push(el);
-        self.stack.push(el);
+        let element = self.pop()?;
+        self.stack.push(element);
+        self.stack.push(element);
         Ok(())
     }
 
@@ -208,18 +252,12 @@ mod tests {
     use super::*;
     use std::{
         fs::{File, remove_file},
-        io::Read,
+        io::{Cursor, Read},
         path::Path,
     };
 
-    fn create_interpreter() -> Interpreter {
-        Interpreter::with_stack_size(10)
-    }
-
-    fn run_code(code: &str) -> Stack {
-        let mut interpreter = create_interpreter();
-        interpreter.run_code(code).expect("Valid testing code.");
-        interpreter.stack
+    fn create_interpreter() -> Interpreter<Cursor<Vec<u8>>> {
+        Interpreter::with_stack_size(10, Cursor::new(Vec::new()))
     }
 
     fn delete_file_if_exists(path_to_file: &str) {
@@ -228,16 +266,29 @@ mod tests {
         }
     }
 
+    fn run_code_and_assert_stack_equals(code: &str, stack: &[StackElementType]) {
+        let mut interpreter = create_interpreter();
+        interpreter.run_code(code).expect("Valid testing code");
+        assert_eq!(&interpreter.stack, stack);
+    }
+
+    fn run_code_and_assert_output_equals(code: &str, output: &str) {
+        let mut interpreter = create_interpreter();
+        interpreter.run_code(code).expect("Valid testing code");
+        let mut buf = Default::default();
+        interpreter.writer.set_position(0);
+        assert!(interpreter.writer.read_to_string(&mut buf).is_ok());
+        assert_eq!(buf, output);
+    }
+
     #[test]
     fn test01_push_to_stack() {
-        let stack = run_code("1 2 3");
-        assert_eq!(stack, [1, 2, 3]);
+        run_code_and_assert_stack_equals("1 2 3", &[1, 2, 3]);
     }
 
     #[test]
     fn test02_perform_operation() {
-        let stack = run_code("1 2 3 +");
-        assert_eq!(stack, [6]);
+        run_code_and_assert_stack_equals("1 2 +", &[3]);
     }
 
     #[test]
@@ -247,7 +298,7 @@ mod tests {
 
         let mut interpreter = create_interpreter();
         assert!(interpreter.run_code("1 2 3 + 1 2").is_ok());
-        assert_eq!(interpreter.stack, [6, 1, 2]);
+        assert_eq!(interpreter.stack, [1, 5, 1, 2]);
 
         assert!(interpreter.export_stack_to(path_to_file).is_ok());
 
@@ -270,117 +321,115 @@ mod tests {
 
     #[test]
     fn test05_ignore_whitespaces() {
-        let stack = run_code("1 2\n\n 3\n \n4\n 5            6");
-        assert_eq!(stack, [1, 2, 3, 4, 5, 6]);
+        run_code_and_assert_stack_equals("1 2\n\n 3\n \n4\n 5            6", &[1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
     fn test06_sum() {
-        let stack = run_code("4 5 +");
-        assert_eq!(stack, [9]);
+        run_code_and_assert_stack_equals("4 5 +", &[9]);
     }
 
     #[test]
     fn test07_sub() {
-        let stack = run_code("4 5 -");
-        assert_eq!(stack, [1]);
+        run_code_and_assert_stack_equals("4 5 -", &[1]);
     }
 
     #[test]
     fn test08_prod() {
-        let stack = run_code("4 5 *");
-        assert_eq!(stack, [20]);
+        run_code_and_assert_stack_equals("4 5 *", &[20]);
     }
 
     #[test]
     fn test09_div() {
-        let stack = run_code("4 9 /");
-        assert_eq!(stack, [2]);
+        run_code_and_assert_stack_equals("4 9 /", &[2]);
     }
 
     #[test]
     fn test10_dup() {
-        let stack = run_code("5 DUP");
-        assert_eq!(stack, [5, 5]);
+        run_code_and_assert_stack_equals("5 DUP", &[5, 5]);
     }
 
     #[test]
     fn test11_drop() {
-        let stack = run_code("1 2 3 DROP");
-        assert_eq!(stack, [1, 2]);
+        run_code_and_assert_stack_equals("1 2 3 DROP", &[1, 2]);
     }
 
     #[test]
     fn test12_swap() {
-        let stack = run_code("1 2 3 SWAP");
-        assert_eq!(stack, [1, 3, 2]);
+        run_code_and_assert_stack_equals("1 2 3 SWAP", &[1, 3, 2]);
     }
 
     #[test]
     fn test13_over() {
-        let stack = run_code("1 2 3 OVER");
-        assert_eq!(stack, [1, 2, 3, 2]);
+        run_code_and_assert_stack_equals("1 2 3 OVER", &[1, 2, 3, 2]);
     }
 
     #[test]
     fn test14_rot() {
-        let stack = run_code("1 2 3 ROT");
-        assert_eq!(stack, [2, 3, 1]);
+        run_code_and_assert_stack_equals("1 2 3 ROT", &[2, 3, 1]);
     }
 
     #[test]
     fn test15_eq() {
-        let stack = run_code("1 2 =");
-        assert_eq!(stack, [0]);
-        let stack = run_code("2 2 =");
-        assert_eq!(stack, [-1]);
+        run_code_and_assert_stack_equals("1 2 =", &[0]);
+        run_code_and_assert_stack_equals("2 2 =", &[-1]);
     }
 
     #[test]
     fn test16_lt() {
-        let stack = run_code("1 2 <");
-        assert_eq!(stack, [0]);
-        let stack = run_code("2 1 <");
-        assert_eq!(stack, [-1]);
+        run_code_and_assert_stack_equals("1 2 <", &[0]);
+        run_code_and_assert_stack_equals("2 1 <", &[-1]);
     }
 
     #[test]
     fn test17_gt() {
-        let stack = run_code("2 1 >");
-        assert_eq!(stack, [0]);
-        let stack = run_code("1 2 >");
-        assert_eq!(stack, [-1]);
+        run_code_and_assert_stack_equals("2 1 >", &[0]);
+        run_code_and_assert_stack_equals("1 2 >", &[-1]);
     }
 
     #[test]
     fn test18_and() {
-        let stack = run_code("0 0 AND");
-        assert_eq!(stack, [0]);
-        let stack = run_code("0 -1 AND");
-        assert_eq!(stack, [0]);
-        let stack = run_code("-1 0 AND");
-        assert_eq!(stack, [0]);
-        let stack = run_code("-1 -1 AND");
-        assert_eq!(stack, [-1]);
+        run_code_and_assert_stack_equals("0 0 AND", &[0]);
+        run_code_and_assert_stack_equals("0 -1 AND", &[0]);
+        run_code_and_assert_stack_equals("-1 0 AND", &[0]);
+        run_code_and_assert_stack_equals("-1 -1 AND", &[-1]);
     }
 
     #[test]
     fn test19_or() {
-        let stack = run_code("0 0 OR");
-        assert_eq!(stack, [0]);
-        let stack = run_code("0 -1 OR");
-        assert_eq!(stack, [-1]);
-        let stack = run_code("-1 0 OR");
-        assert_eq!(stack, [-1]);
-        let stack = run_code("-1 -1 OR");
-        assert_eq!(stack, [-1]);
+        run_code_and_assert_stack_equals("0 0 OR", &[0]);
+        run_code_and_assert_stack_equals("0 -1 OR", &[-1]);
+        run_code_and_assert_stack_equals("-1 0 OR", &[-1]);
+        run_code_and_assert_stack_equals("-1 -1 OR", &[-1]);
     }
 
     #[test]
     fn test19_not() {
-        let stack = run_code("0 NOT");
-        assert_eq!(stack, [-1]);
-        let stack = run_code("-1 NOT");
-        assert_eq!(stack, [0]);
+        run_code_and_assert_stack_equals("0 NOT", &[-1]);
+        run_code_and_assert_stack_equals("-1 NOT", &[0]);
+    }
+
+    #[test]
+    fn test20_dot() {
+        let code = "0 .";
+        run_code_and_assert_stack_equals(code, &[]);
+        run_code_and_assert_output_equals(code, "0");
+    }
+
+    #[test]
+    fn test21_emit() {
+        let code = "33 119 111 87 emit emit emit emit";
+        run_code_and_assert_stack_equals(code, &[]);
+        run_code_and_assert_output_equals(code, "Wow!");
+    }
+
+    #[test]
+    fn test22_emit() {
+        run_code_and_assert_output_equals("CR", "\n");
+    }
+
+    #[test]
+    fn test23_output_string() {
+        run_code_and_assert_output_equals(".\" Hello World!\"", "Hello World!");
     }
 }

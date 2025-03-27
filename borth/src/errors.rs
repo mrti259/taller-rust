@@ -18,6 +18,8 @@ pub enum BorthError {
     CanNotReadFile,
     CanNotReadCode,
     CanNotWriteFile,
+    CanNotWriteToOutput,
+    RuntimeError,
 }
 
 impl Display for BorthError {

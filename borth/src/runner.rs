@@ -27,7 +27,8 @@ impl Runner {
                     return Err(BorthError::CanNotReadCode);
                 }
 
-                let mut interpreter = Interpreter::with_stack_size(self.stack_size);
+                let mut interpreter =
+                    Interpreter::with_stack_size(self.stack_size, std::io::stdout());
                 let code_result = interpreter.run_code(&code);
                 let export_result = interpreter.export_stack_to("stack.fth");
 
