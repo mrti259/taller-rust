@@ -1,13 +1,13 @@
 use crate::errors::*;
-use crate::interpreter::Interpreter;
+use crate::interpreter::BorthInterpreter;
 use std::io::Read;
 
-pub struct Runner {
+pub struct BorthRunner {
     path: String,
     stack_size: usize,
 }
 
-impl Runner {
+impl BorthRunner {
     pub fn from_args(args: &[String]) -> BorthResult<Self> {
         match parse_args(args) {
             Err(error) => Err(error),
@@ -28,7 +28,7 @@ impl Runner {
                 }
 
                 let mut interpreter =
-                    Interpreter::with_stack_size(self.stack_size, std::io::stdout());
+                    BorthInterpreter::with_stack_size(self.stack_size, std::io::stdout());
                 let code_result = interpreter.run_code(&code);
                 let export_result = interpreter.export_stack_to("stack.fth");
 

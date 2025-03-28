@@ -6,7 +6,7 @@ pub type BorthResult<T> = Result<T, BorthError>;
 pub enum BorthError {
     // Common errors:
     StackUnderflow,
-    // StackOverflow,
+    StackOverflow,
     // InvalidWord,
     // DivisionByZero,
     UnknownWord,
