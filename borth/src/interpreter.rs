@@ -7,9 +7,9 @@ pub struct BorthInterpreter<Output: Write> {
 }
 
 impl<Output: Write> BorthInterpreter<Output> {
-    pub fn with_stack_size(size: usize, output: Output) -> Self {
+    pub fn with_stack_size(stack_size: usize, output: Output) -> Self {
         Self {
-            stack: BorthStack::with_capacity(size),
+            stack: BorthStack::with_size(stack_size),
             output,
         }
     }
@@ -17,8 +17,8 @@ impl<Output: Write> BorthInterpreter<Output> {
     pub fn export_stack_to<File: Write>(&self, file: &mut File) -> BorthResult<()> {
         let items = self.stack.items();
         let len = items.len();
-        for i in 0..len {
-            let mut buf = items[i].to_string();
+        for (i, item) in items.iter().enumerate() {
+            let mut buf = item.to_string();
             if i < len - 1 {
                 buf.push(' ');
             }
@@ -146,7 +146,7 @@ impl<Output: Write> BorthInterpreter<Output> {
     fn push(&mut self, token: &str) -> BorthResult<()> {
         match token.parse::<BorthItem>() {
             Ok(item) => self.stack.push(item),
-            _ => Err(BorthError::UnknownWord),
+            _ => Err(BorthError::UnknownWord { _w: token.into() }),
         }
     }
 
@@ -279,7 +279,7 @@ mod tests {
     type Output = Cursor<Vec<u8>>;
 
     fn create_interpreter() -> BorthInterpreter<Output> {
-        BorthInterpreter::with_stack_size(10, Cursor::new(Vec::new()))
+        BorthInterpreter::with_stack_size(20, Cursor::new(Vec::new()))
     }
 
     fn assert_stack_equals(interpreter: &BorthInterpreter<Output>, items: &[BorthItem]) {

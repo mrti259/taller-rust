@@ -11,11 +11,7 @@ pub struct BorthRunner {
 impl BorthRunner {
     pub fn from_args(args: &[String]) -> BorthResult<Self> {
         let (path, stack_size) = parse_args(args)?;
-        let stack_size = if let Some(value) = stack_size {
-            value
-        } else {
-            128_000 / 2
-        };
+        let stack_size = stack_size.unwrap_or(128_000);
         Ok(Self { path, stack_size })
     }
 

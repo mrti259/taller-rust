@@ -9,7 +9,7 @@ pub enum BorthError {
     StackOverflow,
     // InvalidWord,
     // DivisionByZero,
-    UnknownWord,
+    UnknownWord { _w: String },
 
     // Custom errors:
     MissingArguments,
@@ -28,7 +28,7 @@ impl Display for BorthError {
             write!(f, "{:?}", self)
         } else {
             let name = match self {
-                Self::UnknownWord => "?",
+                Self::UnknownWord { _w: _ } => "?",
                 _ => &to_kebabcase(format!("{:#?}", self)),
             };
             f.write_str(name)
@@ -61,6 +61,9 @@ mod tests {
 
     #[test]
     fn test2_display_unknown_word_as_question_mark() {
-        assert_eq!(BorthError::UnknownWord.to_string(), "?");
+        assert_eq!(
+            BorthError::UnknownWord { _w: "sth".into() }.to_string(),
+            "?"
+        );
     }
 }

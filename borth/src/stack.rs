@@ -8,7 +8,8 @@ pub struct BorthStack {
 }
 
 impl BorthStack {
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_size(size: usize) -> Self {
+        let capacity = size / size_of::<BorthItem>();
         BorthStack {
             capacity,
             items: Vec::with_capacity(capacity),
@@ -37,7 +38,7 @@ mod tests {
     use super::*;
 
     fn create_stack(capacity: usize) -> BorthStack {
-        BorthStack::with_capacity(capacity)
+        BorthStack::with_size(capacity * size_of::<BorthItem>())
     }
 
     fn assert_pop_items(stack: &mut BorthStack, items: &[BorthItem]) {
