@@ -5,12 +5,12 @@
 - [ ] Definición de words.
 - [x] Generación de output: ., EMIT, CR, ." ".
 - [x] Operaciones booleanas: =, <, >, AND, OR, NOT.
-- [ ] Evaluación de condicionales: IF ... THEN, IF ... ELSE ... THEN.
+- [x] Evaluación de condicionales: IF ... THEN, IF ... ELSE ... THEN.
 
 ## Manejo de errores:
 
 - [x] stack-underflow: cuando una operación intenta popear un elemento de una pila vacía.
-- [ ] stack-overflow: cuando una operación intenta pushear un elemento a una pila que se encuentra en su capacidad máxima de memoria.
+- [x] stack-overflow: cuando una operación intenta pushear un elemento a una pila que se encuentra en su capacidad máxima de memoria.
 - [ ] invalid-word: cuando se trata de definir una word invalida, por ejemplo: : 1 1 ;.
 - [ ] division-by-zero: cuando se trata de dividir por cero.
 - [x] ?: cuando el interprete no puede hallar la definición de la word evaluada.

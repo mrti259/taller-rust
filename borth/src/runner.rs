@@ -1,6 +1,7 @@
 use crate::errors::*;
 use crate::interpreter::BorthInterpreter;
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Stdout};
 
 pub struct BorthRunner {
     path: String,
@@ -9,32 +10,48 @@ pub struct BorthRunner {
 
 impl BorthRunner {
     pub fn from_args(args: &[String]) -> BorthResult<Self> {
-        match parse_args(args) {
-            Err(error) => Err(error),
-            Ok((path, Some(stack_size))) => Ok(Self { path, stack_size }),
-            Ok((path, None)) => Ok(Self {
-                path,
-                stack_size: 128,
-            }),
-        }
+        let (path, stack_size) = parse_args(args)?;
+        let stack_size = if let Some(value) = stack_size {
+            value
+        } else {
+            128_000 / 2
+        };
+        Ok(Self { path, stack_size })
     }
 
     pub fn start(&self) -> BorthResult<()> {
-        let mut code = String::new();
-        match std::fs::File::open(&self.path) {
+        let code = self.get_code_from_file()?;
+        let mut interpreter = self.create_interpreter();
+        let code_result = interpreter.run_code(&code);
+        let export_result = self.save_stack_to_file(&interpreter, "stack.fth");
+        code_result.and(export_result)
+    }
+
+    fn get_code_from_file(&self) -> BorthResult<String> {
+        match File::open(&self.path) {
             Ok(mut file) => {
+                let mut code = Default::default();
                 if file.read_to_string(&mut code).is_err() {
                     return Err(BorthError::CanNotReadCode);
                 }
-
-                let mut interpreter =
-                    BorthInterpreter::with_stack_size(self.stack_size, std::io::stdout());
-                let code_result = interpreter.run_code(&code);
-                let export_result = interpreter.export_stack_to("stack.fth");
-
-                code_result.and(export_result)
+                Ok(code)
             }
             _ => Err(BorthError::CanNotReadFile),
+        }
+    }
+
+    fn create_interpreter(&self) -> BorthInterpreter<Stdout> {
+        BorthInterpreter::with_stack_size(self.stack_size, std::io::stdout())
+    }
+
+    fn save_stack_to_file(
+        &self,
+        interpreter: &BorthInterpreter<Stdout>,
+        path_to_file: &str,
+    ) -> BorthResult<()> {
+        match File::create(path_to_file) {
+            Ok(mut file) => interpreter.export_stack_to(&mut file),
+            _ => Err(BorthError::CanNotWriteFile),
         }
     }
 }
@@ -63,10 +80,15 @@ fn parse_args(args: &[String]) -> BorthResult<(String, Option<usize>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fs::remove_file, path::Path};
+
+    fn create_args() -> Vec<String> {
+        vec!["forth".into()]
+    }
 
     #[test]
     fn test1_expect_filename_in_args() {
-        let mut args = Vec::from(["forth".into()]);
+        let mut args = create_args();
         assert!(parse_args(&args).is_err());
 
         args.push("ruta/a/main.fth".into());
@@ -75,7 +97,7 @@ mod tests {
 
     #[test]
     fn test2_parse_stack_size() {
-        let mut args = Vec::from(["forth".into()]);
+        let mut args = create_args();
         args.push("ruta/a/main.fth".into());
         args.push("--stack-size=10".into());
 
@@ -84,9 +106,49 @@ mod tests {
 
     #[test]
     fn test3_stack_size_is_optional() {
-        let mut args = Vec::from(["forth".into()]);
+        let mut args = create_args();
         args.push("ruta/a/main.fth".into());
 
         assert!(parse_args(&args).is_ok_and(|(_, size)| size.is_none()));
+    }
+
+    #[test]
+    fn test4_runner_run_ok() {
+        let mut args = create_args();
+        args.push("./fth-examples/3.fth".into());
+        let runner = BorthRunner::from_args(&args);
+        assert!(runner.is_ok());
+        assert!(runner.is_ok_and(|r| r.start().is_ok()));
+    }
+
+    #[test]
+    fn test5_runner_can_not_read_file() {
+        let mut args = create_args();
+        args.push("./fth-examples/0.fth".into());
+        let runner = BorthRunner::from_args(&args);
+        assert!(runner.is_ok());
+        assert!(match runner.and_then(|r| r.start()) {
+            Err(BorthError::CanNotReadFile) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test6_runner_handle_interpreter_error_and_export_stack() {
+        let mut args = create_args();
+        args.push("./fth-examples/stack_underflow.fth".into());
+        let runner = BorthRunner::from_args(&args);
+        assert!(runner.is_ok());
+
+        let export_path = Path::new("stack.fth");
+        if export_path.exists() {
+            let _ = remove_file(export_path);
+        }
+        assert!(!export_path.exists());
+        assert!(match runner.and_then(|r| r.start()) {
+            Err(BorthError::StackUnderflow) => true,
+            _ => false,
+        });
+        assert!(export_path.exists());
     }
 }

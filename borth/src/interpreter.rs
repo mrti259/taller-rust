@@ -1,51 +1,49 @@
 use crate::{errors::*, stack::*};
-use std::{fmt::Display, fs::File, io::Write};
-
-type BorthItem = i16;
+use std::{fmt::Display, io::Write};
 
 pub struct BorthInterpreter<Output: Write> {
-    stack: BorthStack<BorthItem>,
+    stack: BorthStack,
     output: Output,
 }
 
-impl<Writer: Write> BorthInterpreter<Writer> {
-    pub fn with_stack_size(size: usize, output: Writer) -> Self {
+impl<Output: Write> BorthInterpreter<Output> {
+    pub fn with_stack_size(size: usize, output: Output) -> Self {
         Self {
             stack: BorthStack::with_capacity(size),
             output,
         }
     }
 
-    pub fn export_stack_to(&mut self, path_to_file: &str) -> BorthResult<()> {
-        if let Ok(mut file) = File::create(path_to_file) {
-            self.stack.reverse();
-            while let Ok(item) = self.stack.pop() {
-                let mut value = item.to_string();
-                if self.stack.len() > 0 {
-                    value.push(' ');
-                }
-                if file.write(value.as_bytes()).is_err() {
-                    return Err(BorthError::CanNotWriteFile);
-                }
+    pub fn export_stack_to<File: Write>(&self, file: &mut File) -> BorthResult<()> {
+        let items = self.stack.items();
+        let len = items.len();
+        for i in 0..len {
+            let mut buf = items[i].to_string();
+            if i < len - 1 {
+                buf.push(' ');
             }
-            Ok(())
-        } else {
-            Err(BorthError::CanNotWriteFile)
+            if file.write(buf.as_bytes()).is_err() {
+                return Err(BorthError::CanNotWriteFile);
+            }
         }
+        Ok(())
     }
 
     pub fn run_code(&mut self, code: &str) -> BorthResult<()> {
         let mut op_stack = Vec::<String>::new();
-        let mut stops = code.match_indices(char::is_whitespace);
+        let mut whitespaces = code.match_indices(char::is_whitespace);
         let mut offset = 0;
         while offset < code.len() {
-            let stop = stops.next();
-            let pos = stop.map_or(code.len(), |s| s.0);
-            let whitespace = stop.map_or("", |s| s.1);
-            if let Some(token) = code.get(offset..pos) {
-                self.detect_operation(token, whitespace, &mut op_stack)?;
-            }
-            offset = pos + 1;
+            let (stop, whitespace) = match whitespaces.next() {
+                Some(result) => result,
+                None => (code.len(), ""),
+            };
+            let token = match code.get(offset..stop) {
+                Some(token) => token,
+                None => code,
+            };
+            self.detect_operation(token, whitespace, &mut op_stack)?;
+            offset = stop + 1;
         }
         Ok(())
     }
@@ -57,17 +55,58 @@ impl<Writer: Write> BorthInterpreter<Writer> {
         op_stack: &mut Vec<String>,
     ) -> BorthResult<()> {
         if let Some(last_op) = op_stack.last() {
-            if last_op == ".\"" {
-                if token.ends_with("\"") {
-                    op_stack.pop();
-                    self.write(token.trim_end_matches("\""))?;
-                } else {
-                    self.write(token)?;
-                    self.write(whitespace)?;
+            match last_op.as_str() {
+                ".\"" => {
+                    if token.ends_with("\"") {
+                        op_stack.pop();
+                        self.print(token.trim_end_matches("\""))?;
+                    } else {
+                        self.print(token)?;
+                        self.print(whitespace)?;
+                    }
+                    return Ok(());
                 }
-                return Ok(());
+                "IF" => match token.to_uppercase().as_str() {
+                    "THEN" => {
+                        self.stack.pop()?;
+                        op_stack.pop();
+                        return Ok(());
+                    }
+                    "ELSE" => {
+                        let item = self.stack.pop()?;
+                        op_stack.push("ELSE".into());
+                        return self.stack.push(item);
+                    }
+                    _ => {
+                        let item = self.stack.pop()?;
+                        if item != 0 {
+                            self.detect_word(token, op_stack)?;
+                        }
+                        return self.stack.push(item);
+                    }
+                },
+                "ELSE" => match token.to_uppercase().as_str() {
+                    "THEN" => {
+                        self.stack.pop()?;
+                        op_stack.pop();
+                        op_stack.pop();
+                        return Ok(());
+                    }
+                    _ => {
+                        let item = self.stack.pop()?;
+                        if item == 0 {
+                            self.detect_word(token, op_stack)?;
+                        }
+                        return self.stack.push(item);
+                    }
+                },
+                _ => {}
             }
         }
+        self.detect_word(token, op_stack)
+    }
+
+    fn detect_word(&mut self, token: &str, op_stack: &mut Vec<String>) -> BorthResult<()> {
         match token.trim().to_uppercase().as_str() {
             "" => Ok(()),
             "+" => self.sum(),
@@ -85,28 +124,19 @@ impl<Writer: Write> BorthInterpreter<Writer> {
             "AND" => self.and(),
             "OR" => self.or(),
             "NOT" => self.not(),
-            "." => {
-                let item = self.stack.pop()?;
-                self.write(item)
-            }
-            "EMIT" => {
-                let item = self.stack.pop()?;
-                let ascii = char::from_u32(item as u32).ok_or(BorthError::RuntimeError)?;
-                self.write(ascii)
-            }
-            "CR" => self.write("\n"),
-            ".\"" => {
-                op_stack.push(token.to_string());
+            "." => self.dot(),
+            "EMIT" => self.emit(),
+            "CR" => self.print("\n"),
+            ".\"" => self.pstring(token, op_stack),
+            "IF" => {
+                op_stack.push("IF".into());
                 Ok(())
             }
-            "IF" => todo!(),
-            "ELSE" => todo!(),
-            "THEN" => todo!(),
             _ => self.push(token),
         }
     }
 
-    fn write<T: Display>(&mut self, sth: T) -> BorthResult<()> {
+    fn print<T: Display>(&mut self, sth: T) -> BorthResult<()> {
         if write!(self.output, "{}", sth).is_err() {
             return Err(BorthError::CanNotWriteToOutput);
         }
@@ -223,16 +253,28 @@ impl<Writer: Write> BorthInterpreter<Writer> {
         let result = !item1;
         self.stack.push(result)
     }
+
+    fn dot(&mut self) -> BorthResult<()> {
+        let item = self.stack.pop()?;
+        self.print(item)
+    }
+
+    fn emit(&mut self) -> BorthResult<()> {
+        let item = self.stack.pop()?;
+        let ascii = char::from_u32(item as u32).ok_or(BorthError::RuntimeError)?;
+        self.print(ascii)
+    }
+
+    fn pstring(&self, token: &str, op_stack: &mut Vec<String>) -> BorthResult<()> {
+        op_stack.push(token.to_string());
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs::{File, remove_file},
-        io::{Cursor, Read},
-        path::Path,
-    };
+    use std::io::{Cursor, Read};
 
     type Output = Cursor<Vec<u8>>;
 
@@ -240,27 +282,14 @@ mod tests {
         BorthInterpreter::with_stack_size(10, Cursor::new(Vec::new()))
     }
 
-    fn delete_file_if_exists(path_to_file: &str) {
-        if Path::new(path_to_file).exists() {
-            let _ = remove_file(path_to_file);
-        }
-    }
-
-    fn assert_stack_equals(interpreter: BorthInterpreter<Output>, items: &[BorthItem]) {
-        let mut stack = interpreter.stack;
-        stack.reverse();
-        for item in items {
-            match stack.pop() {
-                Ok(value) => assert_eq!(&value, item),
-                _ => assert!(false),
-            }
-        }
+    fn assert_stack_equals(interpreter: &BorthInterpreter<Output>, items: &[BorthItem]) {
+        assert_eq!(interpreter.stack.items(), items);
     }
 
     fn run_code_and_assert_stack_equals(code: &str, stack: &[BorthItem]) {
         let mut interpreter = create_interpreter();
         interpreter.run_code(code).expect("Valid testing code");
-        assert_stack_equals(interpreter, stack);
+        assert_stack_equals(&interpreter, stack);
     }
 
     fn run_code_and_assert_output_equals(code: &str, output: &str) {
@@ -284,29 +313,23 @@ mod tests {
 
     #[test]
     fn test03_export_stack() {
-        let path_to_file = "stack.fth";
-        delete_file_if_exists(path_to_file);
-
         let mut interpreter = create_interpreter();
         assert!(interpreter.run_code("1 2 3 + 1 2").is_ok());
 
-        assert!(interpreter.export_stack_to(path_to_file).is_ok());
+        let mut file = Cursor::new(Vec::new());
+        assert!(interpreter.export_stack_to(&mut file).is_ok());
 
-        let mut file = File::open(path_to_file).expect("File exists.");
-        let mut buf = String::default();
-        assert!(file.read_to_string(&mut buf).is_ok());
-        let stack_read = buf
-            .split_whitespace()
-            .filter_map(|item| item.parse::<BorthItem>().ok())
-            .collect::<Vec<BorthItem>>();
-        assert_eq!(stack_read, [1, 5, 1, 2]);
+        let mut buf = Default::default();
+        let _ = file.set_position(0);
+        let _ = file.read_to_string(&mut buf);
+        assert_eq!(buf, "1 5 1 2");
     }
 
     #[test]
     fn test04_stop_at_error() {
         let mut interpreter = create_interpreter();
         assert!(interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ").is_err());
-        assert_stack_equals(interpreter, &[1, 2, 3]);
+        assert_stack_equals(&interpreter, &[1, 2, 3]);
     }
 
     #[test]
@@ -421,5 +444,21 @@ mod tests {
     #[test]
     fn test23_output_string() {
         run_code_and_assert_output_equals(".\" Hello World!\"", "Hello World!");
+    }
+
+    #[test]
+    fn test24_if_then() {
+        run_code_and_assert_stack_equals("0 IF 1 THEN", &[]);
+        run_code_and_assert_stack_equals("0 IF 1 2 + THEN", &[]);
+        run_code_and_assert_stack_equals("-1 IF 2 THEN", &[2]);
+        run_code_and_assert_stack_equals("-1 IF 1 2 + THEN", &[3]);
+    }
+
+    #[test]
+    fn test25_if_else_then() {
+        run_code_and_assert_stack_equals("0 IF 1 ELSE 2 THEN", &[2]);
+        run_code_and_assert_stack_equals("0 IF 1 ELSE 1 2 + THEN", &[3]);
+        run_code_and_assert_stack_equals("-1 IF ELSE 3 THEN", &[]);
+        run_code_and_assert_stack_equals("-1 IF ELSE 1 2 3 + THEN", &[]);
     }
 }

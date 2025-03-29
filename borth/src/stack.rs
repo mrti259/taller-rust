@@ -1,11 +1,13 @@
 use crate::errors::*;
 
-pub struct BorthStack<Item> {
+pub type BorthItem = i16;
+
+pub struct BorthStack {
     capacity: usize,
-    items: Vec<Item>,
+    items: Vec<BorthItem>,
 }
 
-impl<Item> BorthStack<Item> {
+impl BorthStack {
     pub fn with_capacity(capacity: usize) -> Self {
         BorthStack {
             capacity,
@@ -13,11 +15,11 @@ impl<Item> BorthStack<Item> {
         }
     }
 
-    pub fn pop(&mut self) -> BorthResult<Item> {
+    pub fn pop(&mut self) -> BorthResult<BorthItem> {
         self.items.pop().ok_or(BorthError::StackUnderflow)
     }
 
-    pub fn push(&mut self, item: Item) -> BorthResult<()> {
+    pub fn push(&mut self, item: BorthItem) -> BorthResult<()> {
         if self.capacity == self.items.len() {
             return Err(BorthError::StackOverflow);
         }
@@ -25,12 +27,8 @@ impl<Item> BorthStack<Item> {
         Ok(())
     }
 
-    pub fn len(&self) -> usize {
-        self.items.len()
-    }
-
-    pub fn reverse(&mut self) {
-        self.items.reverse();
+    pub fn items(&self) -> &[BorthItem] {
+        self.items.as_slice()
     }
 }
 
@@ -38,13 +36,11 @@ impl<Item> BorthStack<Item> {
 mod tests {
     use super::*;
 
-    type Item = i16;
-
-    fn create_stack(capacity: usize) -> BorthStack<Item> {
+    fn create_stack(capacity: usize) -> BorthStack {
         BorthStack::with_capacity(capacity)
     }
 
-    fn assert_pop_items(stack: &mut BorthStack<Item>, items: &[Item]) {
+    fn assert_pop_items(stack: &mut BorthStack, items: &[BorthItem]) {
         for item in items {
             if let Ok(value) = stack.pop() {
                 assert_eq!(value, *item);
@@ -88,25 +84,5 @@ mod tests {
             Err(BorthError::StackOverflow) => true,
             _ => false,
         })
-    }
-
-    #[test]
-    fn test4_len() {
-        let mut stack = create_stack(5);
-        assert_eq!(stack.len(), 0);
-        assert!(stack.push(0).is_ok());
-        assert_eq!(stack.len(), 1);
-        assert!(stack.push(0).is_ok());
-        assert_eq!(stack.len(), 2);
-    }
-
-    #[test]
-    fn test5_reverse_stack() {
-        let mut stack = create_stack(3);
-        let _ = stack.push(0);
-        let _ = stack.push(1);
-        let _ = stack.push(2);
-        stack.reverse();
-        assert_pop_items(&mut stack, &[0, 1, 2]);
     }
 }
