@@ -1,6 +1,5 @@
 use crate::{errors::*, interpreter::*};
-use std::fs::File;
-use std::io::{Read, Stdout};
+use std::{fs::File, io::Read};
 
 pub struct BorthRunner {
     path: String,
@@ -17,7 +16,7 @@ impl BorthRunner {
     pub fn start(&self) -> BorthResult<()> {
         let code = self.get_code_from_file()?;
         let mut interpreter = self.create_interpreter();
-        let code_result = interpreter.run_code(&code);
+        let code_result = interpreter.eval(&code, &mut std::io::stdout());
         let export_result = self.save_stack_to_file(&interpreter, "stack.fth");
         code_result.and(export_result)
     }
@@ -35,13 +34,13 @@ impl BorthRunner {
         }
     }
 
-    fn create_interpreter(&self) -> BorthInterpreter<Stdout> {
-        BorthInterpreter::with_stack_size(self.stack_size, std::io::stdout())
+    fn create_interpreter(&self) -> BorthInterpreter {
+        BorthInterpreter::with_stack_size(self.stack_size)
     }
 
     fn save_stack_to_file(
         &self,
-        interpreter: &BorthInterpreter<Stdout>,
+        interpreter: &BorthInterpreter,
         path_to_file: &str,
     ) -> BorthResult<()> {
         match File::create(path_to_file) {

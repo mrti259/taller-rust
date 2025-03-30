@@ -1,27 +1,21 @@
-use crate::{errors::*, stack::*};
-use std::{collections::HashMap, fmt::Display, io::Write};
+pub use crate::{context::*, dict::*, errors::*, expression::*, stack::*};
+use std::io::Write;
 
-pub struct BorthInterpreter<Output: Write> {
-    stack: BorthStack,
-    output: Output,
-    words_stack: Vec<String>,
-    new_word: Vec<String>,
-    words_dict: HashMap<String, Vec<String>>,
+pub struct BorthInterpreter {
+    dict: BorthDict,
+    ctx: BorthContext,
 }
 
-impl<Output: Write> BorthInterpreter<Output> {
-    pub fn with_stack_size(stack_size: usize, output: Output) -> Self {
+impl BorthInterpreter {
+    pub fn with_stack_size(stack_size: usize) -> Self {
         Self {
-            stack: BorthStack::with_size(stack_size),
-            output,
-            words_stack: Vec::new(),
-            new_word: Vec::new(),
-            words_dict: HashMap::new(),
+            dict: BorthDict::new(),
+            ctx: BorthContext::with_stack_size(stack_size),
         }
     }
 
     pub fn export_stack_to(&self, file: &mut impl Write) -> BorthResult<()> {
-        let items = self.stack.items();
+        let items = self.ctx.stack_items();
         let len = items.len();
         for (i, item) in items.iter().enumerate() {
             let mut buf = item.to_string();
@@ -35,7 +29,13 @@ impl<Output: Write> BorthInterpreter<Output> {
         Ok(())
     }
 
-    pub fn run_code(&mut self, code: &str) -> BorthResult<()> {
+    pub fn eval(&mut self, code: &str, writer: &mut impl Write) -> BorthResult<()> {
+        let run_result = self.run_code(code);
+        let writer_result = self.ctx.write_output(writer);
+        run_result.and(writer_result)
+    }
+
+    fn run_code(&mut self, code: &str) -> BorthResult<()> {
         let mut whitespaces = code.match_indices(char::is_whitespace);
         let mut offset = 0;
         while offset < code.len() {
@@ -54,238 +54,29 @@ impl<Output: Write> BorthInterpreter<Output> {
     }
 
     fn process_token(&mut self, token: &str, whitespace: &str) -> BorthResult<()> {
-        if let Some(last_word) = self.words_stack.last() {
-            match last_word.as_str() {
-                ".\"" => {
-                    if token.ends_with("\"") {
-                        self.words_stack.pop();
-                        self.print(token.trim_end_matches("\""))?;
-                    } else {
-                        self.print(token)?;
-                        self.print(whitespace)?;
-                    }
-                    return Ok(());
-                }
-                "IF" => match token.to_uppercase().as_str() {
-                    "THEN" => {
-                        self.stack.pop()?;
-                        self.words_stack.pop();
-                        return Ok(());
-                    }
-                    "ELSE" => {
-                        let item = self.stack.pop()?;
-                        self.words_stack.push("ELSE".into());
-                        return self.stack.push(item);
-                    }
-                    _ => {
-                        let item = self.stack.pop()?;
-                        if item != 0 {
-                            self.detect_operation(token)?;
-                        }
-                        return self.stack.push(item);
-                    }
-                },
-                "ELSE" => match token.to_uppercase().as_str() {
-                    "THEN" => {
-                        self.stack.pop()?;
-                        self.words_stack.pop();
-                        self.words_stack.pop();
-                        return Ok(());
-                    }
-                    _ => {
-                        let item = self.stack.pop()?;
-                        if item == 0 {
-                            self.detect_operation(token)?;
-                        }
-                        return self.stack.push(item);
-                    }
-                },
-                ":" => {
-                    if self.new_word.is_empty() && token.parse::<BorthItem>().is_ok() {
-                        return Err(BorthError::InvalidWord);
-                    }
-                    if token == ";" {
-                        if self.new_word.len() < 2 {
-                            return Err(BorthError::InvalidWord);
-                        }
-                        self.words_dict
-                            .insert(self.new_word[0].to_uppercase(), self.new_word[1..].to_vec());
-                        self.new_word.clear();
-                        self.words_stack.pop();
-                        return Ok(());
-                    }
-                    self.new_word.push(token.into());
-                    return Ok(());
-                }
-                _ => {}
+        match self.ctx.last_expression() {
+            Some(BorthExpression::FunctionWithWhiteSpace(callback)) => {
+                callback(&mut self.ctx, token, whitespace)
             }
+            Some(BorthExpression::FunctionWithDict(callback)) => {
+                callback(&mut self.ctx, &self.dict, token)
+            }
+            Some(BorthExpression::FunctionWithMutDict(callback)) => {
+                callback(&mut self.ctx, &mut self.dict, token)
+            }
+            None => self.detect_operation(token),
+            _ => Err(BorthError::RuntimeError),
         }
-        self.detect_operation(token)
     }
 
     fn detect_operation(&mut self, token: &str) -> BorthResult<()> {
+        if token.is_empty() {
+            return Ok(());
+        }
         match token.parse::<BorthItem>() {
-            Ok(item) => self.stack.push(item),
-            _ => self.detect_word(token),
+            Ok(item) => self.ctx.push_value(item),
+            _ => self.dict.eval(&mut self.ctx, token),
         }
-    }
-
-    fn detect_word(&mut self, token: &str) -> BorthResult<()> {
-        let key = token.trim().to_uppercase();
-        if let Some(word) = self.words_dict.get(&key) {
-            return self.run_code(&word.join(" "));
-        }
-        match key.as_str() {
-            "" => Ok(()),
-            "+" => self.sum(),
-            "-" => self.sub(),
-            "*" => self.prod(),
-            "/" => self.div(),
-            "DUP" => self.dup(),
-            "DROP" => self.drop(),
-            "SWAP" => self.swap(),
-            "OVER" => self.over(),
-            "ROT" => self.rot(),
-            "=" => self.eq(),
-            "<" => self.lt(),
-            ">" => self.gt(),
-            "AND" => self.and(),
-            "OR" => self.or(),
-            "NOT" => self.not(),
-            "." => self.dot(),
-            "EMIT" => self.emit(),
-            "CR" => self.print("\n"),
-            ".\"" | "IF" | ":" => {
-                self.words_stack.push(key);
-                Ok(())
-            }
-            _ => Err(BorthError::UnknownWord(key)),
-        }
-    }
-
-    fn print(&mut self, sth: impl Display) -> BorthResult<()> {
-        if write!(self.output, "{}", sth).is_err() {
-            return Err(BorthError::CanNotWriteToOutput);
-        }
-        Ok(())
-    }
-
-    fn sum(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = item2 + item1;
-        self.stack.push(result)
-    }
-
-    fn sub(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = item2 - item1;
-        self.stack.push(result)
-    }
-
-    fn prod(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = item2 * item1;
-        self.stack.push(result)
-    }
-
-    fn div(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        if item1 == 0 {
-            return Err(BorthError::DivisionByZero);
-        }
-        let result = item2 / item1;
-        self.stack.push(result)
-    }
-
-    fn dup(&mut self) -> BorthResult<()> {
-        let item = self.stack.pop()?;
-        self.stack.push(item)?;
-        self.stack.push(item)
-    }
-
-    fn drop(&mut self) -> BorthResult<()> {
-        self.stack.pop()?;
-        Ok(())
-    }
-
-    fn swap(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        self.stack.push(item1)?;
-        self.stack.push(item2)
-    }
-
-    fn over(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        self.stack.push(item2)?;
-        self.stack.push(item1)?;
-        self.stack.push(item2)
-    }
-
-    fn rot(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let item3 = self.stack.pop()?;
-        self.stack.push(item2)?;
-        self.stack.push(item1)?;
-        self.stack.push(item3)
-    }
-
-    fn eq(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = if item2 == item1 { -1 } else { 0 };
-        self.stack.push(result)
-    }
-
-    fn lt(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = if item2 < item1 { -1 } else { 0 };
-        self.stack.push(result)
-    }
-
-    fn gt(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = if item2 > item1 { -1 } else { 0 };
-        self.stack.push(result)
-    }
-
-    fn and(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = item2 & item1;
-        self.stack.push(result)
-    }
-
-    fn or(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let item2 = self.stack.pop()?;
-        let result = item2 | item1;
-        self.stack.push(result)
-    }
-
-    fn not(&mut self) -> BorthResult<()> {
-        let item1 = self.stack.pop()?;
-        let result = if item1 == 0 { -1 } else { 0 };
-        self.stack.push(result)
-    }
-
-    fn dot(&mut self) -> BorthResult<()> {
-        let item = self.stack.pop()?;
-        self.print(item)
-    }
-
-    fn emit(&mut self) -> BorthResult<()> {
-        let item = self.stack.pop()?;
-        let ascii = char::from_u32(item as u32).ok_or(BorthError::RuntimeError)?;
-        self.print(ascii)
     }
 }
 
@@ -294,14 +85,12 @@ mod tests {
     use super::*;
     use std::io::{Cursor, Read};
 
-    type Output = Cursor<Vec<u8>>;
-
-    fn create_interpreter() -> BorthInterpreter<Output> {
-        BorthInterpreter::with_stack_size(20, Cursor::new(Vec::new()))
+    fn create_interpreter() -> BorthInterpreter {
+        BorthInterpreter::with_stack_size(20)
     }
 
-    fn assert_stack_equals(interpreter: &BorthInterpreter<Output>, items: &[BorthItem]) {
-        assert_eq!(interpreter.stack.items(), items);
+    fn assert_stack_equals(interpreter: &BorthInterpreter, items: &[BorthItem]) {
+        assert_eq!(interpreter.ctx.stack_items(), items);
     }
 
     fn run_code_and_assert_stack_equals(code: &str, stack: &[BorthItem]) {
@@ -310,13 +99,16 @@ mod tests {
         assert_stack_equals(&interpreter, stack);
     }
 
-    fn run_code_and_assert_output_equals(code: &str, output: &str) {
+    fn run_code_and_assert_output_equals(code: &str, content: &str) {
+        let mut output = Cursor::new(Vec::<u8>::new());
         let mut interpreter = create_interpreter();
-        interpreter.run_code(code).expect("Valid testing code");
+        interpreter
+            .eval(code, &mut output)
+            .expect("Valid testing code");
         let mut buf = Default::default();
-        interpreter.output.set_position(0);
-        assert!(interpreter.output.read_to_string(&mut buf).is_ok());
-        assert_eq!(buf, output);
+        output.set_position(0);
+        let _ = output.read_to_string(&mut buf);
+        assert_eq!(buf, content);
     }
 
     #[test]
@@ -452,7 +244,7 @@ mod tests {
     fn test21_emit() {
         let code = "33 119 111 87 emit emit emit emit";
         run_code_and_assert_stack_equals(code, &[]);
-        run_code_and_assert_output_equals(code, "Wow!");
+        run_code_and_assert_output_equals(code, "W o w !");
     }
 
     #[test]
@@ -485,5 +277,13 @@ mod tests {
     fn test26_define_word() {
         run_code_and_assert_stack_equals(": foo 1 ;", &[]);
         run_code_and_assert_stack_equals(": foo 1 ; foo", &[1]);
+    }
+
+    #[test]
+    fn test27_define_word() {
+        run_code_and_assert_stack_equals(
+            " : MAX OVER OVER < IF SWAP THEN DROP ;\n10 20 MAX ",
+            &[20],
+        );
     }
 }

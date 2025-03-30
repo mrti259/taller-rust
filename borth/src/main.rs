@@ -1,4 +1,7 @@
+mod context;
+mod dict;
 mod errors;
+mod expression;
 mod interpreter;
 mod runner;
 mod stack;

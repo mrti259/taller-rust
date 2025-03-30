@@ -1,0 +1,207 @@
+use std::{io::Write, rc::Rc};
+
+use crate::{errors::*, expression::*, stack::*};
+
+#[derive(Debug)]
+pub struct BorthContext {
+    data_stack: BorthStack,
+    output: String,
+    expression_stack: Vec<BorthExpression>,
+    pub new_word: Option<(String, Vec<Rc<BorthExpression>>)>,
+}
+
+impl BorthContext {
+    pub fn with_stack_size(stack_size: usize) -> Self {
+        Self {
+            data_stack: BorthStack::with_size(stack_size),
+            output: String::new(),
+            expression_stack: Vec::new(),
+            new_word: None,
+        }
+    }
+
+    // data stack
+
+    pub fn pop_value(&mut self) -> BorthResult<BorthItem> {
+        self.data_stack.pop()
+    }
+
+    pub fn push_value(&mut self, value: BorthItem) -> BorthResult<()> {
+        self.data_stack.push(value)
+    }
+
+    pub fn stack_items(&self) -> &[BorthItem] {
+        self.data_stack.items()
+    }
+
+    // output
+
+    pub fn print(&mut self, sth: &str) {
+        if !self.output.is_empty() && !self.output.ends_with(char::is_whitespace) {
+            self.print_char(' ');
+        }
+        self.output.push_str(sth);
+    }
+
+    pub fn print_char(&mut self, ch: char) {
+        self.output.push(ch);
+    }
+
+    pub fn write_output(&self, writer: &mut impl Write) -> BorthResult<()> {
+        if write!(writer, "{}", self.output).is_err() {
+            return Err(BorthError::CanNotWriteToOutput);
+        }
+        Ok(())
+    }
+    // expressions
+
+    pub fn push_expression(&mut self, word: BorthExpression) {
+        self.expression_stack.push(word);
+    }
+
+    pub fn pop_expression(&mut self) {
+        self.expression_stack.pop();
+    }
+
+    pub fn last_expression(&self) -> Option<&BorthExpression> {
+        self.expression_stack.last()
+    }
+
+    // testing
+
+    #[allow(dead_code)]
+    pub fn test(&self, stack: &[BorthItem], output: &str, words_stack: &[BorthExpression]) {
+        assert_eq!(self.data_stack.items(), stack);
+        assert_eq!(self.output, output);
+        assert_eq!(self.expression_stack, words_stack);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    fn create_context() -> BorthContext {
+        BorthContext::with_stack_size(10)
+    }
+
+    #[test]
+    fn test01_new() {
+        let ctx = create_context();
+        ctx.test(&[], "", &[]);
+    }
+
+    #[test]
+    fn test02_pop_empty() {
+        let mut ctx = create_context();
+        assert_eq!(ctx.pop_value(), Err(BorthError::StackUnderflow));
+        ctx.test(&[], "", &[]);
+    }
+
+    #[test]
+    fn test03_push_to_stack() {
+        let mut ctx = create_context();
+        assert_eq!(ctx.push_value(1), Ok(()));
+        ctx.test(&[1], "", &[]);
+        assert_eq!(ctx.pop_value(), Ok(1));
+        ctx.test(&[], "", &[]);
+    }
+
+    #[test]
+    fn test04_push_many_to_stack() {
+        let mut ctx = create_context();
+        assert_eq!(ctx.push_value(1), Ok(()));
+        assert_eq!(ctx.push_value(2), Ok(()));
+        ctx.test(&[1, 2], "", &[]);
+        assert_eq!(ctx.pop_value(), Ok(2));
+        assert_eq!(ctx.pop_value(), Ok(1));
+        assert_eq!(ctx.pop_value(), Err(BorthError::StackUnderflow));
+        ctx.test(&[], "", &[]);
+    }
+
+    #[test]
+    fn test05_print_once() {
+        let mut ctx = create_context();
+        ctx.print(&"hello");
+        ctx.test(&[], "hello", &[]);
+    }
+
+    #[test]
+    fn test06_print_many() {
+        let mut ctx = create_context();
+        ctx.print(&"hello");
+        ctx.print(&"world");
+        ctx.test(&[], "hello world", &[]);
+    }
+
+    #[test]
+    fn test07_print_many_with_new_line() {
+        let mut ctx = create_context();
+        ctx.print(&"hello");
+        ctx.print_char('\n');
+        ctx.print(&"world");
+        ctx.test(&[], "hello\nworld", &[]);
+    }
+
+    #[test]
+    fn test08_print_many_with_new_line() {
+        let mut ctx = create_context();
+        ctx.print(&"hello");
+        ctx.print_char('\n');
+        ctx.print(&"world");
+        ctx.test(&[], "hello\nworld", &[]);
+    }
+
+    #[test]
+    fn test09_push_expression() {
+        let mut ctx = create_context();
+        let cb = |_ctx: &mut BorthContext| Ok(());
+        let exp = BorthExpression::Operation(cb);
+        ctx.push_expression(exp);
+        ctx.test(&[], "", &[BorthExpression::Operation(cb)]);
+    }
+
+    #[test]
+    fn test10_some_last_expression() {
+        let mut ctx = create_context();
+        let cb = |_ctx: &mut BorthContext| Ok(());
+        let exp = BorthExpression::Operation(cb);
+        ctx.push_expression(exp);
+        assert_eq!(ctx.last_expression(), Some(&BorthExpression::Operation(cb)));
+    }
+
+    #[test]
+    fn test11_none_last_expression() {
+        let ctx = create_context();
+        assert_eq!(ctx.last_expression(), None);
+    }
+
+    #[test]
+    fn test12_pop_expression() {
+        let mut ctx = create_context();
+        let cb = |_ctx: &mut BorthContext| Ok(());
+        let exp = BorthExpression::Operation(cb);
+        ctx.push_expression(exp);
+        ctx.pop_expression();
+        ctx.test(&[], "", &[]);
+    }
+
+    #[test]
+    fn test13_write_output() {
+        let mut writer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+        let mut ctx = create_context();
+        ctx.print(&"hello world");
+        assert!(ctx.write_output(&mut writer).is_ok());
+        assert_eq!(writer.get_ref(), b"hello world");
+    }
+
+    #[test]
+    fn test14_stack_items() {
+        let mut ctx = create_context();
+        for i in 1..5 {
+            let _ = ctx.push_value(i);
+        }
+        assert_eq!(ctx.stack_items(), &[1, 2, 3, 4]);
+    }
+}

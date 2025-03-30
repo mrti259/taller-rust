@@ -2,6 +2,7 @@ use crate::errors::*;
 
 pub type BorthItem = i16;
 
+#[derive(Debug)]
 pub struct BorthStack {
     capacity: usize,
     items: Vec<BorthItem>,
