@@ -20,11 +20,11 @@ impl BorthStack {
         self.items.pop().ok_or(BorthError::StackUnderflow)
     }
 
-    pub fn push(&mut self, item: BorthItem) -> BorthResult<()> {
+    pub fn push(&mut self, value: BorthItem) -> BorthResult<()> {
         if self.capacity == self.items.len() {
             return Err(BorthError::StackOverflow);
         }
-        self.items.push(item);
+        self.items.push(value);
         Ok(())
     }
 

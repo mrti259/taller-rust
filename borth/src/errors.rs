@@ -2,14 +2,14 @@ use std::fmt::Display;
 
 pub type BorthResult<T> = Result<T, BorthError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BorthError {
     // Common errors:
     StackUnderflow,
     StackOverflow,
-    // InvalidWord,
-    // DivisionByZero,
-    UnknownWord { _w: String },
+    InvalidWord,
+    DivisionByZero,
+    UnknownWord(String),
 
     // Custom errors:
     MissingArguments,
@@ -28,7 +28,7 @@ impl Display for BorthError {
             write!(f, "{:?}", self)
         } else {
             let name = match self {
-                Self::UnknownWord { _w: _ } => "?",
+                Self::UnknownWord(_) => "?",
                 _ => &to_kebabcase(format!("{:#?}", self)),
             };
             f.write_str(name)
@@ -61,9 +61,6 @@ mod tests {
 
     #[test]
     fn test2_display_unknown_word_as_question_mark() {
-        assert_eq!(
-            BorthError::UnknownWord { _w: "sth".into() }.to_string(),
-            "?"
-        );
+        assert_eq!(BorthError::UnknownWord("sth".into()).to_string(), "?");
     }
 }

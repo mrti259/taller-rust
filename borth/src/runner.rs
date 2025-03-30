@@ -1,5 +1,4 @@
-use crate::errors::*;
-use crate::interpreter::BorthInterpreter;
+use crate::{errors::*, interpreter::*};
 use std::fs::File;
 use std::io::{Read, Stdout};
 
