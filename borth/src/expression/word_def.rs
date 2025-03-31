@@ -13,10 +13,10 @@ pub fn call(ctx: &mut BorthContext, dict: &mut BorthDict, token: &str) -> BorthR
         }
         Some((name, body)) => {
             if token == ";" {
-                if body.len() < 1 {
+                if body.is_empty() {
                     return Err(BorthError::InvalidWord);
                 }
-                dict.add_word(&name, body.to_vec());
+                dict.add_word(name, body.to_vec());
                 ctx.pop_expression();
                 ctx.new_word = None;
                 return Ok(());

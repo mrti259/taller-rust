@@ -86,7 +86,7 @@ impl BorthDict {
             return Err(BorthError::UnknownWord(token.to_string()));
         }
         let word = &self.words[key];
-        Self::eval_word(ctx, token, &word)
+        Self::eval_word(ctx, token, word)
     }
 
     fn eval_word(ctx: &mut BorthContext, _token: &str, word: &BorthExpression) -> BorthResult<()> {

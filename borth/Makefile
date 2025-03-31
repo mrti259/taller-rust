@@ -7,4 +7,4 @@ fmt:
 clippy:
 	cargo clippy
 
-check: test fmt clippy
+check: fmt clippy test
