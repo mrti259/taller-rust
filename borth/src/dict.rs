@@ -2,7 +2,7 @@ use crate::{
     context::*,
     errors::*,
     expression::*,
-    expression::{function::*, operation::*},
+    expression::{arithmetic::*, booleans::*, conditionals::*, output::*, stack::*},
     stack::*,
 };
 use std::{collections::HashMap, rc::Rc};

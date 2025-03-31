@@ -1,5 +1,5 @@
 test:
-	cargo test
+	cargo test -q
 
 fmt:
 	cargo fmt

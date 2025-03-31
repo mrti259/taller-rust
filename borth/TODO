@@ -11,7 +11,7 @@
 
 - [x] stack-underflow: cuando una operación intenta popear un elemento de una pila vacía.
 - [x] stack-overflow: cuando una operación intenta pushear un elemento a una pila que se encuentra en su capacidad máxima de memoria.
-- [ ] invalid-word: cuando se trata de definir una word invalida, por ejemplo: : 1 1 ;.
+- [x] invalid-word: cuando se trata de definir una word invalida, por ejemplo: : 1 1 ;.
 - [x] division-by-zero: cuando se trata de dividir por cero.
 - [x] ?: cuando el interprete no puede hallar la definición de la word evaluada.
 - [x] En estos casos, el mensaje de error debe ser tal cual el especificado previamente.

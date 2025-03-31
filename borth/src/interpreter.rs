@@ -1,4 +1,4 @@
-pub use crate::{context::*, dict::*, errors::*, expression::*, stack::*};
+use super::{context::*, dict::*, errors::*, expression::*, stack::*};
 use std::io::Write;
 
 pub struct BorthInterpreter {
@@ -32,7 +32,11 @@ impl BorthInterpreter {
     pub fn eval(&mut self, code: &str, writer: &mut impl Write) -> BorthResult<()> {
         let run_result = self.run_code(code);
         let writer_result = self.ctx.write_output(writer);
-        run_result.and(writer_result)
+        let result = run_result.and(writer_result);
+        if let Err(err) = &result {
+            self.ctx.print(&err.to_string());
+        }
+        result
     }
 
     fn run_code(&mut self, code: &str) -> BorthResult<()> {

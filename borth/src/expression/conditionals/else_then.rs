@@ -20,8 +20,9 @@ pub fn call(ctx: &mut BorthContext, dict: &BorthDict, token: &str) -> BorthResul
 
 #[cfg(test)]
 mod tests {
+    use crate::expression::{BorthExpression, conditionals::if_then};
+
     use super::*;
-    use crate::expression::{function::*, *};
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

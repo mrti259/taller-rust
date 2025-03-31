@@ -1,8 +1,5 @@
-use crate::{
-    context::*,
-    dict::BorthDict,
-    expression::{function::*, *},
-};
+use super::else_then;
+use crate::{context::*, dict::BorthDict, errors::*, expression::*};
 
 pub fn call(ctx: &mut BorthContext, dict: &BorthDict, token: &str) -> BorthResult<()> {
     match token.to_uppercase().as_str() {
