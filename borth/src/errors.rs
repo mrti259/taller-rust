@@ -19,6 +19,7 @@ pub enum BorthError {
     CanNotReadCode,
     CanNotWriteFile,
     CanNotWriteToOutput,
+    IncompleteStatement,
     RuntimeError,
 }
 

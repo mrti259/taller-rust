@@ -1,16 +1,17 @@
-use super::{context::*, dict::*, errors::*, expression::*, stack::*};
+use super::{context::*, dict::*, errors::*};
+use crate::parser;
 use std::io::Write;
 
 pub struct BorthInterpreter {
-    dict: BorthDict,
     ctx: BorthContext,
+    dict: BorthDict,
 }
 
 impl BorthInterpreter {
     pub fn with_stack_size(stack_size: usize) -> Self {
         Self {
-            dict: BorthDict::new(),
             ctx: BorthContext::with_stack_size(stack_size),
+            dict: BorthDict::new(),
         }
     }
 
@@ -32,61 +33,23 @@ impl BorthInterpreter {
     pub fn eval(&mut self, code: &str, writer: &mut impl Write) -> BorthResult<()> {
         let run_result = self.run_code(code);
         let writer_result = self.ctx.write_output(writer);
-        let result = run_result.and(writer_result);
-        if let Err(err) = &result {
-            self.ctx.print(&err.to_string());
-        }
-        result
+        run_result.and(writer_result)
     }
 
     fn run_code(&mut self, code: &str) -> BorthResult<()> {
-        let mut whitespaces = code.match_indices(char::is_whitespace);
-        let mut offset = 0;
-        while offset < code.len() {
-            let (stop, whitespace) = match whitespaces.next() {
-                Some(result) => result,
-                None => (code.len(), ""),
-            };
-            let token = match code.get(offset..stop) {
-                Some(token) => token,
-                None => code,
-            };
-            self.process_token(token, whitespace)?;
-            offset = stop + 1;
+        let tokens = parser::parse_tokens(code);
+        let expressions = parser::parse_expressions(tokens, &mut self.dict);
+        for exp in expressions {
+            exp.eval(&mut self.ctx)?;
         }
         Ok(())
-    }
-
-    fn process_token(&mut self, token: &str, whitespace: &str) -> BorthResult<()> {
-        match self.ctx.last_expression() {
-            Some(BorthExpression::FunctionWithWhiteSpace(callback)) => {
-                callback(&mut self.ctx, token, whitespace)
-            }
-            Some(BorthExpression::FunctionWithDict(callback)) => {
-                callback(&mut self.ctx, &self.dict, token)
-            }
-            Some(BorthExpression::FunctionWithMutDict(callback)) => {
-                callback(&mut self.ctx, &mut self.dict, token)
-            }
-            None => self.detect_operation(token),
-            _ => Err(BorthError::RuntimeError),
-        }
-    }
-
-    fn detect_operation(&mut self, token: &str) -> BorthResult<()> {
-        if token.is_empty() {
-            return Ok(());
-        }
-        match token.parse::<BorthItem>() {
-            Ok(item) => self.ctx.push_value(item),
-            _ => self.dict.eval(&mut self.ctx, token),
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stack::BorthItem;
     use std::io::{Cursor, Read};
 
     fn create_interpreter() -> BorthInterpreter {

@@ -29,7 +29,7 @@ mod tests {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[12, 3]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[4], "", &[]);
+        ctx.test(&[4], "");
     }
 
     #[test]
@@ -37,7 +37,7 @@ mod tests {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[8, 3]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[2], "", &[]);
+        ctx.test(&[2], "");
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1, 12, 3]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[1, 4], "", &[]);
+        ctx.test(&[1, 4], "");
     }
 
     #[test]
@@ -66,6 +66,6 @@ mod tests {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[8, 0]);
         assert_eq!(call(&mut ctx), Err(BorthError::DivisionByZero));
-        ctx.test(&[], "", &[]);
+        ctx.test(&[], "");
     }
 }

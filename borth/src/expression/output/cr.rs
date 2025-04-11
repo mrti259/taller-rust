@@ -17,7 +17,7 @@ mod tests {
     fn test1_cr() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "\n", &[]);
+        ctx.test(&[], "\n");
     }
 
     #[test]
@@ -25,6 +25,6 @@ mod tests {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "\n\n", &[]);
+        ctx.test(&[], "\n\n");
     }
 }

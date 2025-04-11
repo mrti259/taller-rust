@@ -29,7 +29,7 @@ mod tests {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1, 2, 3]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[2, 3, 1], "", &[]);
+        ctx.test(&[2, 3, 1], "");
     }
 
     #[test]
@@ -39,7 +39,7 @@ mod tests {
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[1, 2, 3], "", &[]);
+        ctx.test(&[1, 2, 3], "");
     }
 
     #[test]

@@ -3,6 +3,7 @@ mod dict;
 mod errors;
 mod expression;
 mod interpreter;
+mod parser;
 mod runner;
 mod stack;
 

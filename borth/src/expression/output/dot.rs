@@ -27,7 +27,7 @@ mod tests {
         push_to_stack(&mut ctx, &[1, 2]);
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "2 1", &[]);
+        ctx.test(&[], "2 1");
     }
 
     #[test]
@@ -37,7 +37,7 @@ mod tests {
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[1, 2], "5 4 3", &[]);
+        ctx.test(&[1, 2], "5 4 3");
     }
 
     #[test]
