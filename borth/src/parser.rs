@@ -28,6 +28,7 @@ pub fn parse_expressions(tokens: BorthTokens, dict: &mut BorthDict) -> Vec<Rc<Bo
     let mut expressions = vec![];
     let mut iterator = tokens.iter();
     while let Some(expression) = dict.detect_next(&mut iterator) {
+        // println!("{:?}", expression);
         expressions.push(expression);
     }
     expressions
