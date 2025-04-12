@@ -1,12 +1,11 @@
 pub mod arithmetic;
 pub mod booleans;
-pub mod dot_quote;
-pub mod if_else_then;
 pub mod output;
+pub mod specials;
 pub mod stack;
-pub mod word_def;
 
 use crate::{context::*, errors::*, stack::*};
+use specials::*;
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]

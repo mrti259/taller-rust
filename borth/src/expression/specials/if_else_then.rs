@@ -1,5 +1,4 @@
-use super::BorthExpression;
-use crate::{context::*, dict::BorthDict, errors::*, parser::*};
+use crate::{context::*, dict::BorthDict, errors::*, expression::BorthExpression, parser::*};
 use std::rc::Rc;
 
 pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> BorthExpression {

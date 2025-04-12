@@ -1,5 +1,4 @@
-use super::BorthExpression;
-use crate::{context::*, errors::BorthResult, parser::*};
+use crate::{context::*, errors::BorthResult, expression::BorthExpression, parser::*};
 
 pub fn create(iterator: &mut BorthIterator) -> BorthExpression {
     let mut str = String::new();

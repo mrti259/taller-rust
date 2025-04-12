@@ -1,5 +1,5 @@
 use crate::{
-    expression::{arithmetic::*, booleans::*, output::*, stack::*, *},
+    expression::{arithmetic::*, booleans::*, output::*, specials::*, stack::*, *},
     parser::BorthIterator,
     stack::*,
 };
@@ -77,14 +77,7 @@ impl BorthDict {
         None
     }
 
-    pub fn detect(&self, token: &str) -> Rc<BorthExpression> {
-        match self.try_detect(token) {
-            Some(expression) => expression,
-            None => Rc::new(BorthExpression::UnknownWord(token.into())),
-        }
-    }
-
-    fn try_detect(&self, token: &str) -> Option<Rc<BorthExpression>> {
+    pub fn try_detect(&self, token: &str) -> Option<Rc<BorthExpression>> {
         if let Some(word) = self.words.get(&token.to_lowercase()) {
             return Some(Rc::clone(word));
         }
@@ -105,26 +98,19 @@ mod tests {
         BorthDict::new()
     }
 
-    fn assert_detect(token: &str, expected: &BorthExpression) {
-        let dict = create_dict();
-        let result = dict.detect(token);
-        assert_eq!(result.as_ref(), expected);
-    }
-
-    fn assert_detect_next(code: &str, expected: &BorthExpression) {
+    fn assert_detect(code: &str, expected: &BorthExpression) {
         let mut dict = create_dict();
         let tokens = parser::parse_tokens(code);
         let result = dict.detect_next(&mut tokens.iter());
         assert!(match result {
             Some(actual) => actual.as_ref() == expected,
             _ => false,
-        })
+        });
     }
 
     fn assert_unknown_word(token: &str) {
         let dict = create_dict();
-        let result = dict.detect(token);
-        assert_eq!(result.as_ref(), &BorthExpression::UnknownWord(token.into()));
+        assert!(dict.try_detect(token).is_none());
     }
 
     //arithmetic
@@ -227,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_dot_quote() {
-        assert_detect_next(
+        assert_detect(
             ".\" Hello World!\"",
             &BorthExpression::DotQuote("Hello World!".into()),
         );
@@ -239,13 +225,13 @@ mod tests {
     fn test_if_else_then() {
         assert_unknown_word("then");
         assert_unknown_word("else");
-        assert_detect_next("if then", &BorthExpression::IfElseThen(vec![], vec![]));
-        assert_detect_next("if else then", &BorthExpression::IfElseThen(vec![], vec![]));
-        assert_detect_next(
+        assert_detect("if then", &BorthExpression::IfElseThen(vec![], vec![]));
+        assert_detect("if else then", &BorthExpression::IfElseThen(vec![], vec![]));
+        assert_detect(
             "if 1 then",
             &BorthExpression::IfElseThen(vec![Rc::new(BorthExpression::Number(1))], vec![]),
         );
-        assert_detect_next(
+        assert_detect(
             "if else 1 then",
             &BorthExpression::IfElseThen(vec![], vec![Rc::new(BorthExpression::Number(1))]),
         );
@@ -256,7 +242,7 @@ mod tests {
     #[test]
     fn test_add_word() {
         assert_unknown_word("foo");
-        assert_detect_next(": foo 1 9 + 5 ;", &BorthExpression::WordCreated);
+        assert_detect(": foo 1 9 + 5 ;", &BorthExpression::WordCreated);
     }
 
     #[test]
@@ -269,6 +255,9 @@ mod tests {
         ];
         let mut dict = create_dict();
         dict.add_word("foo", body.clone());
-        assert_eq!(dict.detect("FoO").as_ref(), &BorthExpression::Word(body),);
+        assert!(match dict.try_detect("FoO") {
+            Some(exp) => exp.as_ref() == &BorthExpression::Word(body),
+            _ => false,
+        });
     }
 }

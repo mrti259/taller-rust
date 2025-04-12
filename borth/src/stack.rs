@@ -53,7 +53,7 @@ mod tests {
         assert!(match stack.pop() {
             Err(BorthError::StackUnderflow) => true,
             _ => false,
-        })
+        });
     }
 
     #[test]
@@ -85,6 +85,6 @@ mod tests {
         assert!(match stack.push(0) {
             Err(BorthError::StackOverflow) => true,
             _ => false,
-        })
+        });
     }
 }

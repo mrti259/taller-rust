@@ -1,5 +1,7 @@
-use super::BorthExpression;
-use crate::{context::BorthContext, dict::BorthDict, errors::*, parser::*, stack::BorthItem};
+use crate::{
+    context::BorthContext, dict::BorthDict, errors::*, expression::BorthExpression, parser::*,
+    stack::BorthItem,
+};
 use std::rc::Rc;
 
 pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> Rc<BorthExpression> {
@@ -56,7 +58,10 @@ mod tests {
         expected: &BorthExpression,
     ) {
         assert_create(code, dict, &BorthExpression::WordCreated);
-        assert_eq!(dict.detect(word).as_ref(), expected);
+        assert!(match dict.try_detect(word) {
+            Some(actual) => actual.as_ref() == expected,
+            _ => false,
+        });
     }
 
     #[test]
@@ -74,10 +79,7 @@ mod tests {
     fn test2_invalid_word() {
         let mut dict = create_dict();
         assert_create("foo ;", &mut dict, &BorthExpression::InvalidWord);
-        assert_eq!(
-            dict.detect("foo").as_ref(),
-            &BorthExpression::UnknownWord("foo".into())
-        );
+        assert!(dict.try_detect("foo").is_none());
     }
 
     #[test]
