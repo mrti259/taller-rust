@@ -2,25 +2,26 @@ use super::BorthExpression;
 use crate::{context::*, dict::BorthDict, errors::*, parser::*};
 use std::rc::Rc;
 
-pub fn create(iterator: &mut BorthIterator, dict: &BorthDict) -> BorthExpression {
+pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> BorthExpression {
     let mut if_block = vec![];
     let mut else_block = vec![];
 
     let mut in_else_block = false;
-    for (token, _) in iterator.by_ref() {
-        match token.to_lowercase().as_str() {
-            "then" => return BorthExpression::IfElseThen(if_block, else_block),
-            "else" => {
-                in_else_block = true;
-            }
-            _ => {
-                let exp = dict.detect(token);
-                if in_else_block {
-                    else_block.push(exp);
-                } else {
-                    if_block.push(exp);
+    while let Some(exp) = dict.detect_next(iterator) {
+        if let BorthExpression::UnknownWord(word) = exp.as_ref() {
+            match word.to_lowercase().as_str() {
+                "then" => return BorthExpression::IfElseThen(if_block, else_block),
+                "else" => {
+                    in_else_block = true;
+                    continue;
                 }
+                _ => {}
             }
+        }
+        if in_else_block {
+            else_block.push(exp);
+        } else {
+            if_block.push(exp);
         }
     }
     BorthExpression::IncompleteStatement
@@ -55,8 +56,8 @@ mod tests {
     }
 
     fn assert_create_and_call(ctx: &mut BorthContext, tokens: Vec<(&str, &str)>) {
-        let dict = create_dict();
-        assert!(match create(&mut tokens.iter(), &dict) {
+        let mut dict = create_dict();
+        assert!(match create(&mut tokens.iter(), &mut dict) {
             BorthExpression::IfElseThen(if_block, else_block) =>
                 call(ctx, &if_block, &else_block).is_ok(),
             _ => false,
@@ -64,8 +65,8 @@ mod tests {
     }
 
     fn assert_incomplete_statement(tokens: Vec<(&str, &str)>) {
-        let dict = create_dict();
-        assert!(match create(&mut tokens.iter(), &dict) {
+        let mut dict = create_dict();
+        assert!(match create(&mut tokens.iter(), &mut dict) {
             BorthExpression::IncompleteStatement => true,
             _ => false,
         });
@@ -117,5 +118,14 @@ mod tests {
     fn test6_if_else_then_open() {
         let tokens = parse_tokens("0 else 1 ");
         assert_incomplete_statement(tokens);
+    }
+
+    #[test]
+    fn test7_if_non_canonical() {
+        let tokens = parse_tokens("10 then");
+        let mut ctx = create_context();
+        let _ = ctx.push_value(5);
+        assert_create_and_call(&mut ctx, tokens);
+        ctx.test(&[10], "");
     }
 }

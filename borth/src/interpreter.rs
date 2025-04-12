@@ -253,4 +253,87 @@ mod tests {
             &[20],
         );
     }
+
+    #[test]
+    fn test_non_transitive() {
+        run_code_and_assert_stack_equals(
+            " : foo 5 ;
+            : bar foo ;
+            : foo 6 ;
+            bar foo ",
+            &[5, 6],
+        );
+    }
+
+    #[test]
+    fn test_heavy() {
+        run_code_and_assert_stack_equals(
+            " : word1 1 ;
+            : word2 word1 word1 ;
+            : word4 word2 word2 ;
+            : word8 word4 word4 ;
+            : word16 word8 word8 ;
+            : word32 word16 word16 ;
+            : word64 word32 word32 ;
+            : word128 word64 word64 ;
+            : word256 word128 word128 ;
+            : word512 word256 word256 ;
+            : word1024 word512 word512 ;
+            : word2048 word1024 word1024 ;
+            : word4096 word2048 word2048 ;
+            : word8192 word4096 word4096 ;
+            : word16384 word8192 word8192 ;
+            : word32768 word16384 word16384 ;
+            : word65536 word32768 word32768 ;
+            : word131072 word65536 word65536 ;
+            : word262144 word131072 word131072 ;
+            : word524288 word262144 word262144 ;
+            : word1048576 word524288 word524288 ;
+            : word2097152 word1048576 word1048576 ;
+            : word4194304 word2097152 word2097152 ;
+            : word8388608 word4194304 word4194304 ;
+            : word16777216 word8388608 word8388608 ;
+            : word33554432 word16777216 word16777216 ;
+            : word67108864 word33554432 word33554432 ;
+            : word134217728 word67108864 word67108864 ;
+            ",
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_nested_if() {
+        run_code_and_assert_stack_equals(
+            " : f
+                if
+                    if 1 else 2 then
+                else
+                    drop 3
+                then ;
+            -1 -1 f
+            0 -1 f
+            0 0 f ",
+            &[1, 2, 3],
+        );
+    }
+
+    #[test]
+    fn test_nested_if_else() {
+        run_code_and_assert_stack_equals(
+            "
+            : f
+            dup 0 = if
+                drop 2
+            else dup 1 = if
+                drop 3
+            else
+                drop 4
+            then then ;
+            0 f
+            1 f
+            2 f
+            ",
+            &[2, 3, 4],
+        );
+    }
 }
