@@ -41,7 +41,7 @@ mod tests {
     }
 
     #[test]
-    fn test3_stack_underflow() {
+    fn test3_stack_underflow_empty() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Err(BorthError::StackUnderflow));
     }

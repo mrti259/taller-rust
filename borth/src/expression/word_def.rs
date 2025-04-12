@@ -12,15 +12,12 @@ pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> Rc<BorthExp
 
             let mut body = vec![];
             while let Some(exp) = dict.detect_next(iterator) {
-                match exp.as_ref() {
-                    BorthExpression::UnknownWord(word) => {
-                        if word == ";" {
-                            break;
-                        }
-                        body.push(exp);
+                if let BorthExpression::UnknownWord(word) = exp.as_ref() {
+                    if word == ";" {
+                        break;
                     }
-                    _ => body.push(exp),
                 }
+                body.push(exp);
             }
             if body.is_empty() {
                 return Rc::new(BorthExpression::InvalidWord);
@@ -40,7 +37,7 @@ pub fn call(ctx: &mut BorthContext, body: &Vec<Rc<BorthExpression>>) -> BorthRes
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expression::{BorthExpression, arithmetic::mul, stack::dup};
+    use crate::expression::{BorthExpression, arithmetic::mul, booleans::eq, stack::dup};
     use std::rc::Rc;
 
     fn create_dict() -> BorthDict {
@@ -170,6 +167,24 @@ mod tests {
             &BorthExpression::Word(vec![Rc::new(BorthExpression::DotQuote(
                 "hello world".into(),
             ))]),
+        );
+    }
+
+    #[test]
+    fn test_conditional() {
+        let mut dict = create_dict();
+        assert_create_word(
+            "is-zero",
+            "is-zero 0 = if -1 else 0 then ;",
+            &mut dict,
+            &BorthExpression::Word(vec![
+                Rc::new(BorthExpression::Number(0)),
+                Rc::new(BorthExpression::Operation(eq::call)),
+                Rc::new(BorthExpression::IfElseThen(
+                    vec![Rc::new(BorthExpression::Number(-1))],
+                    vec![Rc::new(BorthExpression::Number(0))],
+                )),
+            ]),
         );
     }
 }

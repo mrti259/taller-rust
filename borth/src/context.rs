@@ -4,14 +4,14 @@ use crate::{errors::*, stack::*};
 
 #[derive(Debug)]
 pub struct BorthContext {
-    data_stack: BorthStack,
+    stack: BorthStack,
     output: String,
 }
 
 impl BorthContext {
     pub fn with_stack_size(stack_size: usize) -> Self {
         Self {
-            data_stack: BorthStack::with_size(stack_size),
+            stack: BorthStack::with_size(stack_size),
             output: String::new(),
         }
     }
@@ -19,15 +19,15 @@ impl BorthContext {
     // data stack
 
     pub fn pop_value(&mut self) -> BorthResult<BorthItem> {
-        self.data_stack.pop()
+        self.stack.pop()
     }
 
     pub fn push_value(&mut self, value: BorthItem) -> BorthResult<()> {
-        self.data_stack.push(value)
+        self.stack.push(value)
     }
 
     pub fn stack_items(&self) -> &[BorthItem] {
-        self.data_stack.items()
+        self.stack.items()
     }
 
     // output
@@ -54,7 +54,7 @@ impl BorthContext {
 
     #[allow(dead_code)]
     pub fn test(&self, stack: &[BorthItem], output: &str) {
-        assert_eq!(self.data_stack.items(), stack);
+        assert_eq!(self.stack.items(), stack);
         assert_eq!(self.output, output);
     }
 }
@@ -127,16 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn test08_print_many_with_new_line() {
-        let mut ctx = create_context();
-        ctx.print(&"hello");
-        ctx.print_char('\n');
-        ctx.print(&"world");
-        ctx.test(&[], "hello\nworld");
-    }
-
-    #[test]
-    fn test09_write_output() {
+    fn test08_write_output() {
         let mut writer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
         let mut ctx = create_context();
         ctx.print(&"hello world");
@@ -145,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test10_stack_items() {
+    fn test09_stack_items() {
         let mut ctx = create_context();
         for i in 1..5 {
             let _ = ctx.push_value(i);

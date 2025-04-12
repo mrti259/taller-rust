@@ -99,6 +99,7 @@ impl BorthDict {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser;
 
     fn create_dict() -> BorthDict {
         BorthDict::new()
@@ -110,8 +111,9 @@ mod tests {
         assert_eq!(result.as_ref(), expected);
     }
 
-    fn assert_detect_next(tokens: Vec<(&str, &str)>, expected: &BorthExpression) {
+    fn assert_detect_next(code: &str, expected: &BorthExpression) {
         let mut dict = create_dict();
+        let tokens = parser::parse_tokens(code);
         let result = dict.detect_next(&mut tokens.iter());
         assert!(match result {
             Some(actual) => actual.as_ref() == expected,
@@ -225,7 +227,10 @@ mod tests {
 
     #[test]
     fn test_dot_quote() {
-        // assert_detect(".\"", &BorthExpression::FnWithIterator(dot_quote::call));
+        assert_detect_next(
+            ".\" Hello World!\"",
+            &BorthExpression::DotQuote("Hello World!".into()),
+        );
     }
 
     // conditional
@@ -234,20 +239,14 @@ mod tests {
     fn test_if_else_then() {
         assert_unknown_word("then");
         assert_unknown_word("else");
+        assert_detect_next("if then", &BorthExpression::IfElseThen(vec![], vec![]));
+        assert_detect_next("if else then", &BorthExpression::IfElseThen(vec![], vec![]));
         assert_detect_next(
-            vec![("if", ""), ("then", "")],
-            &BorthExpression::IfElseThen(vec![], vec![]),
-        );
-        assert_detect_next(
-            vec![("if", ""), ("else", ""), ("then", "")],
-            &BorthExpression::IfElseThen(vec![], vec![]),
-        );
-        assert_detect_next(
-            vec![("if", ""), ("1", ""), ("then", "")],
+            "if 1 then",
             &BorthExpression::IfElseThen(vec![Rc::new(BorthExpression::Number(1))], vec![]),
         );
         assert_detect_next(
-            vec![("if", ""), ("else", ""), ("1", ""), ("then", "")],
+            "if else 1 then",
             &BorthExpression::IfElseThen(vec![], vec![Rc::new(BorthExpression::Number(1))]),
         );
     }
@@ -256,20 +255,8 @@ mod tests {
 
     #[test]
     fn test_add_word() {
-        let word = "foo";
-        let body = vec![
-            Rc::new(BorthExpression::Number(1)),
-            Rc::new(BorthExpression::Number(9)),
-            Rc::new(BorthExpression::Operation(add::call)),
-            Rc::new(BorthExpression::Number(5)),
-        ];
-        let mut dict = create_dict();
-        assert_eq!(
-            dict.detect(word).as_ref(),
-            &BorthExpression::UnknownWord(word.into())
-        );
-        dict.add_word(word, body.clone());
-        assert_eq!(dict.detect(word).as_ref(), &BorthExpression::Word(body),);
+        assert_unknown_word("foo");
+        assert_detect_next(": foo 1 9 + 5 ;", &BorthExpression::WordCreated);
     }
 
     #[test]
@@ -283,14 +270,5 @@ mod tests {
         let mut dict = create_dict();
         dict.add_word("foo", body.clone());
         assert_eq!(dict.detect("FoO").as_ref(), &BorthExpression::Word(body),);
-    }
-
-    #[test]
-    fn test_add_word_with_conditional() {
-        let word = "foo";
-        let body = vec![];
-        let mut dict = create_dict();
-        dict.add_word(word, body.clone());
-        assert_eq!(dict.detect(word).as_ref(), &BorthExpression::Word(body),);
     }
 }

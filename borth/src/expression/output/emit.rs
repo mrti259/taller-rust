@@ -50,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn test4_stack_underflow() {
+    fn test4_stack_underflow_empty() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Err(BorthError::StackUnderflow));
     }

@@ -2,8 +2,9 @@ use std::{rc::Rc, slice::Iter};
 
 use crate::{dict::BorthDict, expression::BorthExpression};
 
-pub type BorthTokens<'a> = Vec<(&'a str, &'a str)>;
-pub type BorthIterator<'a> = Iter<'a, (&'a str, &'a str)>;
+type BorthToken<'a> = (&'a str, &'a str);
+pub type BorthTokens<'a> = Vec<BorthToken<'a>>;
+pub type BorthIterator<'a> = Iter<'a, BorthToken<'a>>;
 
 pub fn parse_tokens(code: &str) -> BorthTokens<'_> {
     let mut tokens = vec![];

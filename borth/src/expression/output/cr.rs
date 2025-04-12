@@ -21,7 +21,7 @@ mod tests {
     }
 
     #[test]
-    fn test2_cr() {
+    fn test2_cr_twice() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));

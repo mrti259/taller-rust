@@ -22,7 +22,7 @@ mod tests {
     }
 
     #[test]
-    fn test1_dup() {
+    fn test1_dup_all() {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1]);
         assert_eq!(call(&mut ctx), Ok(()));
@@ -30,7 +30,7 @@ mod tests {
     }
 
     #[test]
-    fn test2_dup() {
+    fn test2_dup_last() {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1, 2]);
         assert_eq!(call(&mut ctx), Ok(()));
@@ -38,7 +38,7 @@ mod tests {
     }
 
     #[test]
-    fn test3_stack_underflow() {
+    fn test3_stack_underflow_empty() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Err(BorthError::StackUnderflow));
     }
