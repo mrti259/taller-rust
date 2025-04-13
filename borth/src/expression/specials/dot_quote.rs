@@ -60,4 +60,13 @@ mod tests {
         let tokens = parse_tokens("world\"");
         assert_create_and_call(&mut ctx, tokens, "hello world");
     }
+
+    #[test]
+    fn test5_dot_quote_open() {
+        let tokens = parse_tokens("hello");
+        assert_eq!(
+            create(&mut tokens.iter()),
+            BorthExpression::IncompleteStatement
+        );
+    }
 }
