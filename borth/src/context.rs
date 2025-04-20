@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use crate::{errors::*, stack::*};
 
 #[derive(Debug)]
@@ -43,11 +41,8 @@ impl BorthContext {
         self.output.push(ch);
     }
 
-    pub fn write_output(&self, writer: &mut impl Write) -> BorthResult<()> {
-        if write!(writer, "{}", self.output).is_err() {
-            return Err(BorthError::CanNotWriteToOutput);
-        }
-        Ok(())
+    pub fn output(&self) -> &str {
+        &self.output
     }
 
     // testing
@@ -62,7 +57,6 @@ impl BorthContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)
@@ -127,12 +121,10 @@ mod tests {
     }
 
     #[test]
-    fn test08_write_output() {
-        let mut writer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    fn test08_output_slice() {
         let mut ctx = create_context();
         ctx.print(&"hello world");
-        assert!(ctx.write_output(&mut writer).is_ok());
-        assert_eq!(writer.get_ref(), b"hello world");
+        assert_eq!(ctx.output(), "hello world");
     }
 
     #[test]

@@ -1,6 +1,5 @@
 use super::{context::*, dict::*, errors::*};
-use crate::parser;
-use std::io::Write;
+use crate::{parser, stack::BorthItem};
 
 pub struct BorthInterpreter {
     ctx: BorthContext,
@@ -15,28 +14,14 @@ impl BorthInterpreter {
         }
     }
 
-    pub fn export_stack_to(&self, file: &mut impl Write) -> BorthResult<()> {
-        let items = self.ctx.stack_items();
-        let len = items.len();
-        for (i, item) in items.iter().enumerate() {
-            let mut buf = item.to_string();
-            if i < len - 1 {
-                buf.push(' ');
-            }
-            if file.write(buf.as_bytes()).is_err() {
-                return Err(BorthError::CanNotWriteFile);
-            }
+    pub fn run_code(&mut self, code: &str) -> (&[BorthItem], &str) {
+        if let Err(err) = self.eval(code) {
+            self.ctx.print(&format!("{}", err));
         }
-        Ok(())
+        (self.ctx.stack_items(), self.ctx.output())
     }
 
-    pub fn eval(&mut self, code: &str, writer: &mut impl Write) -> BorthResult<()> {
-        let run_result = self.run_code(code);
-        let writer_result = self.ctx.write_output(writer);
-        run_result.and(writer_result)
-    }
-
-    fn run_code(&mut self, code: &str) -> BorthResult<()> {
+    fn eval(&mut self, code: &str) -> BorthResult<()> {
         let tokens = parser::parse_tokens(code);
         let expressions = parser::parse_expressions(tokens, &mut self.dict);
         for exp in expressions {
@@ -50,32 +35,21 @@ impl BorthInterpreter {
 mod tests {
     use super::*;
     use crate::stack::BorthItem;
-    use std::io::{Cursor, Read};
 
     fn create_interpreter() -> BorthInterpreter {
         BorthInterpreter::with_stack_size(20)
     }
 
-    fn assert_stack_equals(interpreter: &BorthInterpreter, items: &[BorthItem]) {
-        assert_eq!(interpreter.ctx.stack_items(), items);
+    fn run_code_and_assert_stack_equals(code: &str, expected: &[BorthItem]) {
+        let mut interpreter = create_interpreter();
+        let (stack, _) = interpreter.run_code(code);
+        assert_eq!(stack, expected);
     }
 
-    fn run_code_and_assert_stack_equals(code: &str, stack: &[BorthItem]) {
+    fn run_code_and_assert_output_equals(code: &str, expected: &str) {
         let mut interpreter = create_interpreter();
-        interpreter.run_code(code).expect("Valid testing code");
-        assert_stack_equals(&interpreter, stack);
-    }
-
-    fn run_code_and_assert_output_equals(code: &str, content: &str) {
-        let mut output = Cursor::new(Vec::<u8>::new());
-        let mut interpreter = create_interpreter();
-        interpreter
-            .eval(code, &mut output)
-            .expect("Valid testing code");
-        let mut buf = Default::default();
-        output.set_position(0);
-        let _ = output.read_to_string(&mut buf);
-        assert_eq!(buf, content);
+        let (_, output) = interpreter.run_code(code);
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -89,24 +63,11 @@ mod tests {
     }
 
     #[test]
-    fn test03_export_stack() {
+    fn test03_stop_at_error_and_output_error() {
         let mut interpreter = create_interpreter();
-        assert!(interpreter.run_code("1 2 3 + 1 2").is_ok());
-
-        let mut file = Cursor::new(Vec::new());
-        assert!(interpreter.export_stack_to(&mut file).is_ok());
-
-        let mut buf = Default::default();
-        let _ = file.set_position(0);
-        let _ = file.read_to_string(&mut buf);
-        assert_eq!(buf, "1 5 1 2");
-    }
-
-    #[test]
-    fn test04_stop_at_error() {
-        let mut interpreter = create_interpreter();
-        assert!(interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ").is_err());
-        assert_stack_equals(&interpreter, &[1, 2, 3]);
+        let (stack, output) = interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ");
+        assert_eq!(stack, &[1, 2, 3]);
+        assert_eq!(output, "?");
     }
 
     #[test]

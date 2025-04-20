@@ -1,52 +1,31 @@
-use crate::{errors::*, interpreter::*};
-use std::{fs::File, io::Read};
+use crate::{errors::*, interpreter::*, stack::BorthItem};
+use std::{
+    fs::File,
+    io::{Read, Write},
+};
 
 pub struct BorthRunner {
-    path: String,
+    code_path: String,
     stack_size: usize,
 }
 
 impl BorthRunner {
     pub fn from_args(args: &[String]) -> BorthResult<Self> {
-        let (path, stack_size) = parse_args(args)?;
+        let (code_path, stack_size) = parse_args(args)?;
         let stack_size = stack_size.unwrap_or(128_000);
-        Ok(Self { path, stack_size })
+        Ok(Self {
+            code_path,
+            stack_size,
+        })
     }
 
-    pub fn start(&self) -> BorthResult<()> {
-        let code = self.get_code_from_file()?;
-        let mut interpreter = self.create_interpreter();
-        let code_result = interpreter.eval(&code, &mut std::io::stdout());
-        let export_result = self.save_stack_to_file(&interpreter, "stack.fth");
-        code_result.and(export_result)
-    }
-
-    fn get_code_from_file(&self) -> BorthResult<String> {
-        match File::open(&self.path) {
-            Ok(mut file) => {
-                let mut code = Default::default();
-                if file.read_to_string(&mut code).is_err() {
-                    return Err(BorthError::CanNotReadCode);
-                }
-                Ok(code)
-            }
-            _ => Err(BorthError::CanNotReadFile),
-        }
-    }
-
-    fn create_interpreter(&self) -> BorthInterpreter {
-        BorthInterpreter::with_stack_size(self.stack_size)
-    }
-
-    fn save_stack_to_file(
-        &self,
-        interpreter: &BorthInterpreter,
-        path_to_file: &str,
-    ) -> BorthResult<()> {
-        match File::create(path_to_file) {
-            Ok(mut file) => interpreter.export_stack_to(&mut file),
-            _ => Err(BorthError::CanNotWriteFile),
-        }
+    pub fn start(&self, stack_file: &str, writer: &mut impl Write) -> BorthResult<()> {
+        let code = get_code_from_file(&self.code_path)?;
+        let mut interpreter = BorthInterpreter::with_stack_size(self.stack_size);
+        let (stack, output) = interpreter.run_code(&code);
+        let save_result = save_stack_to_file(stack, stack_file);
+        let write_result = write_output(writer, output);
+        save_result.and(write_result)
     }
 }
 
@@ -71,13 +50,61 @@ fn parse_args(args: &[String]) -> BorthResult<(String, Option<usize>)> {
     }
 }
 
+fn get_code_from_file(path: &str) -> BorthResult<String> {
+    match File::open(path) {
+        Ok(mut file) => {
+            let mut code = Default::default();
+            if file.read_to_string(&mut code).is_err() {
+                return Err(BorthError::CanNotReadCode);
+            }
+            Ok(code)
+        }
+        _ => Err(BorthError::CanNotReadFile),
+    }
+}
+
+fn save_stack_to_file(stack: &[BorthItem], path_to_file: &str) -> BorthResult<()> {
+    match File::create(path_to_file) {
+        Ok(mut file) => {
+            let len = stack.len();
+            for (i, item) in stack.iter().enumerate() {
+                let mut buf = item.to_string();
+                if i < len - 1 {
+                    buf.push(' ');
+                }
+                if file.write(buf.as_bytes()).is_err() {
+                    return Err(BorthError::CanNotWriteFile);
+                }
+            }
+            Ok(())
+        }
+        _ => Err(BorthError::CanNotWriteFile),
+    }
+}
+
+fn write_output(writer: &mut impl Write, output: &str) -> BorthResult<()> {
+    write!(writer, "{}", output).or(Err(BorthError::CanNotWriteToOutput))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs::remove_file, path::Path};
+    use std::io::Cursor;
 
     fn create_args() -> Vec<String> {
         vec!["forth".into()]
+    }
+
+    fn create_runner(args: &Vec<String>) -> BorthResult<BorthRunner> {
+        BorthRunner::from_args(args)
+    }
+
+    fn create_writer() -> impl Write {
+        Vec::new()
+    }
+
+    fn run(runner: BorthRunner) -> BorthResult<()> {
+        runner.start("/tmp/borth-test-stack.fth", &mut create_writer())
     }
 
     #[test]
@@ -110,39 +137,46 @@ mod tests {
     fn test4_runner_run_ok() {
         let mut args = create_args();
         args.push("./fth-examples/3.fth".into());
-        let runner = BorthRunner::from_args(&args);
+        let runner = create_runner(&args);
+
         assert!(runner.is_ok());
-        assert!(runner.is_ok_and(|r| r.start().is_ok()));
+        assert!(runner.is_ok_and(|r| run(r).is_ok()));
     }
 
     #[test]
     fn test5_runner_can_not_read_file() {
         let mut args = create_args();
         args.push("./fth-examples/0.fth".into());
-        let runner = BorthRunner::from_args(&args);
+        let runner = create_runner(&args);
+
         assert!(runner.is_ok());
-        assert!(match runner.and_then(|r| r.start()) {
-            Err(BorthError::CanNotReadFile) => true,
-            _ => false,
-        });
+        assert_eq!(runner.and_then(|r| run(r)), Err(BorthError::CanNotReadFile));
     }
 
     #[test]
-    fn test6_runner_handle_interpreter_error_and_export_stack() {
+    fn test6_runner_can_not_write_stack() {
         let mut args = create_args();
-        args.push("./fth-examples/stack_underflow.fth".into());
-        let runner = BorthRunner::from_args(&args);
-        assert!(runner.is_ok());
+        args.push("./fth-examples/3.fth".into());
+        let runner = create_runner(&args);
 
-        let export_path = Path::new("stack.fth");
-        if export_path.exists() {
-            let _ = remove_file(export_path);
-        }
-        assert!(!export_path.exists());
-        assert!(match runner.and_then(|r| r.start()) {
-            Err(BorthError::StackUnderflow) => true,
-            _ => false,
-        });
-        assert!(export_path.exists());
+        assert!(runner.is_ok());
+        assert_eq!(
+            runner.and_then(|r| r.start("/tmp/borth/test-stack.fth", &mut create_writer())),
+            Err(BorthError::CanNotWriteFile)
+        );
+    }
+
+    #[test]
+    fn test7_runner_can_not_write_output() {
+        let mut args = create_args();
+        args.push("./fth-examples/3.fth".into());
+        let runner = create_runner(&args);
+        let mut writer = Cursor::new([]);
+
+        assert!(runner.is_ok());
+        assert_eq!(
+            runner.and_then(|r| r.start("/tmp/borth-test-stack.fth", &mut writer)),
+            Err(BorthError::CanNotWriteToOutput)
+        );
     }
 }
