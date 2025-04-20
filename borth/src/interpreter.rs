@@ -16,7 +16,7 @@ impl BorthInterpreter {
 
     pub fn run_code(&mut self, code: &str) -> (&[BorthItem], &str) {
         if let Err(err) = self.eval(code) {
-            self.ctx.print(&format!("{}", err));
+            self.ctx.print(&format!("{}\n", err));
         }
         (self.ctx.stack_items(), self.ctx.output())
     }
@@ -67,7 +67,7 @@ mod tests {
         let mut interpreter = create_interpreter();
         let (stack, output) = interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ");
         assert_eq!(stack, &[1, 2, 3]);
-        assert_eq!(output, "?");
+        assert_eq!(output, "?\n");
     }
 
     #[test]
