@@ -1,20 +1,22 @@
-use crate::{
+use super::{
+    context::BorthItem,
     expression::{arithmetic::*, booleans::*, output::*, specials::*, stack::*, *},
     parser::BorthIterator,
-    stack::*,
 };
 use std::{collections::HashMap, rc::Rc};
 
+/// Store words and their definitions
 pub struct BorthDict {
     words: HashMap<String, Rc<BorthExpression>>,
-    words_created: Rc<BorthExpression>,
+    word_created: Rc<BorthExpression>,
 }
 
 impl BorthDict {
+    /// Create a new BorthDict instance with builtin words
     pub fn new() -> Self {
         let mut this = Self {
             words: HashMap::new(),
-            words_created: Rc::new(BorthExpression::WordCreated),
+            word_created: Rc::new(BorthExpression::WordCreated),
         };
         this.init_words();
         this
@@ -49,13 +51,15 @@ impl BorthDict {
         self.words.insert(token.to_lowercase(), Rc::new(exp));
     }
 
+    /// Add a new word to the dictionary
     pub fn add_word(&mut self, token: &str, body: Vec<Rc<BorthExpression>>) -> Rc<BorthExpression> {
         self.add(token, BorthExpression::Word(body));
-        Rc::clone(&self.words_created)
+        Rc::clone(&self.word_created)
     }
 
     // evaluation
 
+    /// Detect the next expression in the iterator
     pub fn detect_next(&mut self, iterator: &mut BorthIterator) -> Option<Rc<BorthExpression>> {
         while let Some((word, _)) = iterator.next() {
             if word.is_empty() {
@@ -77,6 +81,7 @@ impl BorthDict {
         None
     }
 
+    /// Try to detect a word and return its expression
     pub fn try_detect(&self, token: &str) -> Option<Rc<BorthExpression>> {
         if let Some(word) = self.words.get(&token.to_lowercase()) {
             return Some(Rc::clone(word));

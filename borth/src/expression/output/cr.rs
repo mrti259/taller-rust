@@ -1,5 +1,6 @@
 use crate::{context::*, errors::BorthResult};
 
+/// Print a new line.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     ctx.print_char('\n');
     Ok(())

@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Print the top item of the stack.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let item1 = ctx.pop_value()?;
     ctx.print(&item1.to_string());
@@ -9,7 +10,7 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

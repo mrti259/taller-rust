@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Apply a bitwise OR operation to the two top values on the stack.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let value1 = ctx.pop_value()?;
     let value2 = ctx.pop_value()?;
@@ -8,9 +9,8 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::stack::BorthItem;
-
     use super::*;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

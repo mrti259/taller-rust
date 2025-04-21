@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Return -1 if the top value is falsy, otherwise returns 0.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let value1 = ctx.pop_value()?;
     ctx.push_value(if value1 == 0 { -1 } else { 0 })
@@ -7,9 +8,8 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::stack::BorthItem;
-
     use super::*;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

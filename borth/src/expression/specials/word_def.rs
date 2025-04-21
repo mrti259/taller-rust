@@ -1,9 +1,7 @@
-use crate::{
-    context::BorthContext, dict::BorthDict, errors::*, expression::BorthExpression, parser::*,
-    stack::BorthItem,
-};
+use crate::{context::*, dict::BorthDict, errors::*, expression::BorthExpression, parser::*};
 use std::rc::Rc;
 
+/// Create a Word expression.
 pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> Rc<BorthExpression> {
     match iterator.next() {
         None => Rc::new(BorthExpression::InvalidWord),
@@ -29,6 +27,7 @@ pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> Rc<BorthExp
     }
 }
 
+/// Call the Word expression.
 pub fn call(ctx: &mut BorthContext, body: &Vec<Rc<BorthExpression>>) -> BorthResult<()> {
     for exp in body {
         exp.eval(ctx)?;

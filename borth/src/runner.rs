@@ -1,15 +1,17 @@
-use crate::{errors::*, interpreter::*, stack::BorthItem};
+use super::{context::BorthItem, errors::*, interpreter::*};
 use std::{
     fs::File,
     io::{Read, Write},
 };
 
+/// Store the path with the code to run and the stack size
 pub struct BorthRunner {
     code_path: String,
     stack_size: usize,
 }
 
 impl BorthRunner {
+    /// Create a new BorthRunner instance with the given code path and stack size.
     pub fn from_args(args: &[String]) -> BorthResult<Self> {
         let (code_path, stack_size) = parse_args(args)?;
         let stack_size = stack_size.unwrap_or(128_000);
@@ -19,6 +21,7 @@ impl BorthRunner {
         })
     }
 
+    /// Eval the code file, then save the stack to the given file and write output
     pub fn start(&self, stack_file: &str, writer: &mut impl Write) -> BorthResult<()> {
         let code = get_code_from_file(&self.code_path)?;
         let mut interpreter = BorthInterpreter::with_stack_size(self.stack_size);

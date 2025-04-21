@@ -1,5 +1,6 @@
 use crate::{context::*, errors::BorthResult, expression::BorthExpression, parser::*};
 
+/// Create a DotQuote expression.
 pub fn create(iterator: &mut BorthIterator) -> BorthExpression {
     let mut str = String::new();
     for (token, whitespace) in iterator.by_ref() {
@@ -13,6 +14,7 @@ pub fn create(iterator: &mut BorthIterator) -> BorthExpression {
     BorthExpression::IncompleteStatement
 }
 
+/// Print string from expression.
 pub fn call(ctx: &mut BorthContext, str: &str) -> BorthResult<()> {
     ctx.print(str);
     Ok(())

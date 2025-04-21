@@ -1,12 +1,13 @@
-use super::{context::*, dict::*, errors::*};
-use crate::{parser, stack::BorthItem};
+use super::{context::*, dict::*, errors::*, parser};
 
+/// Store interpreter's context and dictionary
 pub struct BorthInterpreter {
     ctx: BorthContext,
     dict: BorthDict,
 }
 
 impl BorthInterpreter {
+    /// Create a new BorthInterpreter instance with the given stack size
     pub fn with_stack_size(stack_size: usize) -> Self {
         Self {
             ctx: BorthContext::with_stack_size(stack_size),
@@ -14,6 +15,7 @@ impl BorthInterpreter {
         }
     }
 
+    /// Eval the given code and handle errors. Then return the resulting stack and output.
     pub fn run_code(&mut self, code: &str) -> (&[BorthItem], &str) {
         if let Err(err) = self.eval(code) {
             self.ctx.print(&format!("{}\n", err));
@@ -34,7 +36,6 @@ impl BorthInterpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
 
     fn create_interpreter() -> BorthInterpreter {
         BorthInterpreter::with_stack_size(20)

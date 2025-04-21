@@ -4,11 +4,12 @@ pub mod output;
 pub mod specials;
 pub mod stack;
 
-use crate::{context::*, errors::*, stack::*};
+use super::{context::*, errors::*};
 use specials::*;
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
+/// Posible expressions in Borth
 pub enum BorthExpression {
     Number(BorthItem),
     Operation(fn(&mut BorthContext) -> BorthResult<()>),
@@ -22,6 +23,7 @@ pub enum BorthExpression {
 }
 
 impl BorthExpression {
+    /// Handle the evaluation of the expression
     pub fn eval(&self, ctx: &mut BorthContext) -> BorthResult<()> {
         match self {
             BorthExpression::Number(value) => ctx.push_value(*value),

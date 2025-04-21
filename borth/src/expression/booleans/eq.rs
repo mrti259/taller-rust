@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Compare the two top values on the stack. Return -1 if they are equal, otherwise return 0.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let value1 = ctx.pop_value()?;
     let value2 = ctx.pop_value()?;
@@ -9,7 +10,7 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

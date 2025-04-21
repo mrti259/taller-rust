@@ -1,46 +1,63 @@
-use crate::{errors::*, stack::*};
+use super::errors::*;
 
-#[derive(Debug)]
+/// Each stack item takes 2 bytes
+pub type BorthItem = i16;
+
+/// Handle the stack and output of an interpreter execution
 pub struct BorthContext {
-    stack: BorthStack,
+    capacity: usize,
+    items: Vec<BorthItem>,
     output: String,
 }
 
 impl BorthContext {
+    /// Create a new BorthContext instance with the given stack size in bytes
     pub fn with_stack_size(stack_size: usize) -> Self {
+        let capacity = stack_size / size_of::<BorthItem>();
         Self {
-            stack: BorthStack::with_size(stack_size),
+            capacity,
+            items: Vec::with_capacity(capacity),
             output: String::new(),
         }
     }
 
     // data stack
 
+    /// Pop the last item from the stack or return an error if the stack is empty
     pub fn pop_value(&mut self) -> BorthResult<BorthItem> {
-        self.stack.pop()
+        self.items.pop().ok_or(BorthError::StackUnderflow)
     }
 
+    /// Push a new item to the stack or return an error if the stack is full
     pub fn push_value(&mut self, value: BorthItem) -> BorthResult<()> {
-        self.stack.push(value)
+        if self.capacity == self.items.len() {
+            return Err(BorthError::StackOverflow);
+        }
+        self.items.push(value);
+        Ok(())
     }
 
+    /// Returns the items from the stack as as slice
     pub fn stack_items(&self) -> &[BorthItem] {
-        self.stack.items()
+        self.items.as_slice()
     }
 
     // output
 
-    pub fn print(&mut self, sth: &str) {
+    /// Push a string to the output buffer
+    pub fn print(&mut self, str: &str) {
         if !self.output.is_empty() && !self.output.ends_with(char::is_whitespace) {
             self.print_char(' ');
         }
-        self.output.push_str(sth);
+        self.output.push_str(str);
     }
 
-    pub fn print_char(&mut self, ch: char) {
-        self.output.push(ch);
+    /// Push a character to the output buffer
+    pub fn print_char(&mut self, char: char) {
+        self.output.push(char);
     }
 
+    /// Return the output buffer as a str slice
     pub fn output(&self) -> &str {
         &self.output
     }
@@ -48,8 +65,9 @@ impl BorthContext {
     // testing
 
     #[allow(dead_code)]
+    /// Wrap test assertions to avoid code duplication
     pub fn test(&self, stack: &[BorthItem], output: &str) {
-        assert_eq!(self.stack.items(), stack);
+        assert_eq!(self.stack_items(), stack);
         assert_eq!(self.output, output);
     }
 }
@@ -97,14 +115,21 @@ mod tests {
     }
 
     #[test]
-    fn test05_print_once() {
+    fn test05_push_when_full() {
+        let mut stack = BorthContext::with_stack_size(2);
+        assert!(stack.push_value(0).is_ok());
+        assert_eq!(stack.push_value(0), Err(BorthError::StackOverflow));
+    }
+
+    #[test]
+    fn test06_print_once() {
         let mut ctx = create_context();
         ctx.print(&"hello");
         ctx.test(&[], "hello");
     }
 
     #[test]
-    fn test06_print_many() {
+    fn test07_print_many() {
         let mut ctx = create_context();
         ctx.print(&"hello");
         ctx.print(&"world");
@@ -112,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test07_print_many_with_new_line() {
+    fn test08_print_many_with_new_line() {
         let mut ctx = create_context();
         ctx.print(&"hello");
         ctx.print_char('\n');
@@ -121,14 +146,14 @@ mod tests {
     }
 
     #[test]
-    fn test08_output_slice() {
+    fn test09_output_slice() {
         let mut ctx = create_context();
         ctx.print(&"hello world");
         assert_eq!(ctx.output(), "hello world");
     }
 
     #[test]
-    fn test09_stack_items() {
+    fn test10_stack_items() {
         let mut ctx = create_context();
         for i in 1..5 {
             let _ = ctx.push_value(i);

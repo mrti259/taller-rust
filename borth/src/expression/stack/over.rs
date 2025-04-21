@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Duplicate on top the second top value on the stack.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let value1 = ctx.pop_value()?;
     let value2 = ctx.pop_value()?;
@@ -11,7 +12,7 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

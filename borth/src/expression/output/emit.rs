@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Emit the top item from the stack as a character.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     let item1 = ctx.pop_value()?;
     let ascii = char::from_u32(item1 as u32).ok_or(BorthError::RuntimeError)?;
@@ -10,7 +11,7 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)

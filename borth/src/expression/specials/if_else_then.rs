@@ -1,6 +1,7 @@
 use crate::{context::*, dict::BorthDict, errors::*, expression::BorthExpression, parser::*};
 use std::rc::Rc;
 
+/// Create an IfElseThen expression.
 pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> BorthExpression {
     let mut if_block = vec![];
     let mut else_block = vec![];
@@ -26,6 +27,7 @@ pub fn create(iterator: &mut BorthIterator, dict: &mut BorthDict) -> BorthExpres
     BorthExpression::IncompleteStatement
 }
 
+/// Call the IfElseThen expression.
 pub fn call(
     ctx: &mut BorthContext,
     if_block: &Vec<Rc<BorthExpression>>,
