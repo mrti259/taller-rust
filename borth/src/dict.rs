@@ -107,10 +107,7 @@ mod tests {
         let mut dict = create_dict();
         let tokens = parser::parse_tokens(code);
         let result = dict.detect_next(&mut tokens.iter());
-        assert!(match result {
-            Some(actual) => actual.as_ref() == expected,
-            _ => false,
-        });
+        assert!(matches!(result, Some(actual) if actual.as_ref() == expected));
     }
 
     fn assert_unknown_word(token: &str) {
@@ -260,9 +257,8 @@ mod tests {
         ];
         let mut dict = create_dict();
         dict.add_word("foo", body.clone());
-        assert!(match dict.try_detect("FoO") {
-            Some(exp) => exp.as_ref() == &BorthExpression::Word(body),
-            _ => false,
-        });
+        assert!(
+            matches!(dict.try_detect("FoO"), Some(actual) if actual.as_ref() == &BorthExpression::Word(body))
+        );
     }
 }

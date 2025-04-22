@@ -10,4 +10,7 @@ clippy:
 doc:
 	cargo doc
 
+cov:
+	cargo llvm-cov --html
+
 check: fmt clippy test

@@ -67,10 +67,10 @@ mod tests {
 
     fn assert_incomplete_statement(tokens: Vec<(&str, &str)>) {
         let mut dict = create_dict();
-        assert!(match create(&mut tokens.iter(), &mut dict) {
-            BorthExpression::IncompleteStatement => true,
-            _ => false,
-        });
+        assert_eq!(
+            create(&mut tokens.iter(), &mut dict),
+            BorthExpression::IncompleteStatement
+        );
     }
 
     #[test]

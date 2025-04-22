@@ -57,10 +57,7 @@ mod tests {
         expected: &BorthExpression,
     ) {
         assert_create(code, dict, &BorthExpression::WordCreated);
-        assert!(match dict.try_detect(word) {
-            Some(actual) => actual.as_ref() == expected,
-            _ => false,
-        });
+        assert!(matches!(dict.try_detect(word), Some(actual) if actual.as_ref() == expected));
     }
 
     #[test]
