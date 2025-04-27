@@ -1,0 +1,6 @@
+[submodule "25C1-Rust-and-Furious"]
+	path = 25C1-Rust-and-Furious
+	url = git@github.com:taller-1-fiuba-rust/25C1-Rust-and-Furious.git
+[submodule "codecrafters-redis-rust"]
+	path = codecrafters-redis-rust
+	url = https://git.codecrafters.io/8a0cd05ec7601150
