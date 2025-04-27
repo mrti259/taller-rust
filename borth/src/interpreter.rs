@@ -1,118 +1,56 @@
-use super::{context::*, dict::*, errors::*, expression::*, stack::*};
-use std::io::Write;
+use super::{context::*, dict::*, errors::*, parser};
 
+/// Store interpreter's context and dictionary
 pub struct BorthInterpreter {
-    dict: BorthDict,
     ctx: BorthContext,
+    dict: BorthDict,
 }
 
 impl BorthInterpreter {
+    /// Create a new BorthInterpreter instance with the given stack size
     pub fn with_stack_size(stack_size: usize) -> Self {
         Self {
-            dict: BorthDict::new(),
             ctx: BorthContext::with_stack_size(stack_size),
+            dict: BorthDict::new(),
         }
     }
 
-    pub fn export_stack_to(&self, file: &mut impl Write) -> BorthResult<()> {
-        let items = self.ctx.stack_items();
-        let len = items.len();
-        for (i, item) in items.iter().enumerate() {
-            let mut buf = item.to_string();
-            if i < len - 1 {
-                buf.push(' ');
-            }
-            if file.write(buf.as_bytes()).is_err() {
-                return Err(BorthError::CanNotWriteFile);
-            }
+    /// Eval the given code and handle errors. Then return the resulting stack and output.
+    pub fn run_code(&mut self, code: &str) -> (&[BorthItem], &str) {
+        if let Err(err) = self.eval(code) {
+            self.ctx.print(&format!("{}\n", err));
+        }
+        (self.ctx.stack_items(), self.ctx.output())
+    }
+
+    fn eval(&mut self, code: &str) -> BorthResult<()> {
+        let tokens = parser::parse_tokens(code);
+        let expressions = parser::parse_expressions(tokens, &mut self.dict);
+        for exp in expressions {
+            exp.eval(&mut self.ctx)?;
         }
         Ok(())
-    }
-
-    pub fn eval(&mut self, code: &str, writer: &mut impl Write) -> BorthResult<()> {
-        let run_result = self.run_code(code);
-        let writer_result = self.ctx.write_output(writer);
-        let result = run_result.and(writer_result);
-        if let Err(err) = &result {
-            self.ctx.print(&err.to_string());
-        }
-        result
-    }
-
-    fn run_code(&mut self, code: &str) -> BorthResult<()> {
-        let mut whitespaces = code.match_indices(char::is_whitespace);
-        let mut offset = 0;
-        while offset < code.len() {
-            let (stop, whitespace) = match whitespaces.next() {
-                Some(result) => result,
-                None => (code.len(), ""),
-            };
-            let token = match code.get(offset..stop) {
-                Some(token) => token,
-                None => code,
-            };
-            self.process_token(token, whitespace)?;
-            offset = stop + 1;
-        }
-        Ok(())
-    }
-
-    fn process_token(&mut self, token: &str, whitespace: &str) -> BorthResult<()> {
-        match self.ctx.last_expression() {
-            Some(BorthExpression::FunctionWithWhiteSpace(callback)) => {
-                callback(&mut self.ctx, token, whitespace)
-            }
-            Some(BorthExpression::FunctionWithDict(callback)) => {
-                callback(&mut self.ctx, &self.dict, token)
-            }
-            Some(BorthExpression::FunctionWithMutDict(callback)) => {
-                callback(&mut self.ctx, &mut self.dict, token)
-            }
-            None => self.detect_operation(token),
-            _ => Err(BorthError::RuntimeError),
-        }
-    }
-
-    fn detect_operation(&mut self, token: &str) -> BorthResult<()> {
-        if token.is_empty() {
-            return Ok(());
-        }
-        match token.parse::<BorthItem>() {
-            Ok(item) => self.ctx.push_value(item),
-            _ => self.dict.eval(&mut self.ctx, token),
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Cursor, Read};
 
     fn create_interpreter() -> BorthInterpreter {
         BorthInterpreter::with_stack_size(20)
     }
 
-    fn assert_stack_equals(interpreter: &BorthInterpreter, items: &[BorthItem]) {
-        assert_eq!(interpreter.ctx.stack_items(), items);
+    fn run_code_and_assert_stack_equals(code: &str, expected: &[BorthItem]) {
+        let mut interpreter = create_interpreter();
+        let (stack, _) = interpreter.run_code(code);
+        assert_eq!(stack, expected);
     }
 
-    fn run_code_and_assert_stack_equals(code: &str, stack: &[BorthItem]) {
+    fn run_code_and_assert_output_equals(code: &str, expected: &str) {
         let mut interpreter = create_interpreter();
-        interpreter.run_code(code).expect("Valid testing code");
-        assert_stack_equals(&interpreter, stack);
-    }
-
-    fn run_code_and_assert_output_equals(code: &str, content: &str) {
-        let mut output = Cursor::new(Vec::<u8>::new());
-        let mut interpreter = create_interpreter();
-        interpreter
-            .eval(code, &mut output)
-            .expect("Valid testing code");
-        let mut buf = Default::default();
-        output.set_position(0);
-        let _ = output.read_to_string(&mut buf);
-        assert_eq!(buf, content);
+        let (_, output) = interpreter.run_code(code);
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -126,24 +64,11 @@ mod tests {
     }
 
     #[test]
-    fn test03_export_stack() {
+    fn test03_stop_at_error_and_output_error() {
         let mut interpreter = create_interpreter();
-        assert!(interpreter.run_code("1 2 3 + 1 2").is_ok());
-
-        let mut file = Cursor::new(Vec::new());
-        assert!(interpreter.export_stack_to(&mut file).is_ok());
-
-        let mut buf = Default::default();
-        let _ = file.set_position(0);
-        let _ = file.read_to_string(&mut buf);
-        assert_eq!(buf, "1 5 1 2");
-    }
-
-    #[test]
-    fn test04_stop_at_error() {
-        let mut interpreter = create_interpreter();
-        assert!(interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ").is_err());
-        assert_stack_equals(&interpreter, &[1, 2, 3]);
+        let (stack, output) = interpreter.run_code("1 2 3 UNKNOWN + 4 5 6 + ");
+        assert_eq!(stack, &[1, 2, 3]);
+        assert_eq!(output, "?\n");
     }
 
     #[test]
@@ -288,6 +213,89 @@ mod tests {
         run_code_and_assert_stack_equals(
             " : MAX OVER OVER < IF SWAP THEN DROP ;\n10 20 MAX ",
             &[20],
+        );
+    }
+
+    #[test]
+    fn test_non_transitive() {
+        run_code_and_assert_stack_equals(
+            " : foo 5 ;
+            : bar foo ;
+            : foo 6 ;
+            bar foo ",
+            &[5, 6],
+        );
+    }
+
+    #[test]
+    fn test_heavy() {
+        run_code_and_assert_stack_equals(
+            " : word1 1 ;
+            : word2 word1 word1 ;
+            : word4 word2 word2 ;
+            : word8 word4 word4 ;
+            : word16 word8 word8 ;
+            : word32 word16 word16 ;
+            : word64 word32 word32 ;
+            : word128 word64 word64 ;
+            : word256 word128 word128 ;
+            : word512 word256 word256 ;
+            : word1024 word512 word512 ;
+            : word2048 word1024 word1024 ;
+            : word4096 word2048 word2048 ;
+            : word8192 word4096 word4096 ;
+            : word16384 word8192 word8192 ;
+            : word32768 word16384 word16384 ;
+            : word65536 word32768 word32768 ;
+            : word131072 word65536 word65536 ;
+            : word262144 word131072 word131072 ;
+            : word524288 word262144 word262144 ;
+            : word1048576 word524288 word524288 ;
+            : word2097152 word1048576 word1048576 ;
+            : word4194304 word2097152 word2097152 ;
+            : word8388608 word4194304 word4194304 ;
+            : word16777216 word8388608 word8388608 ;
+            : word33554432 word16777216 word16777216 ;
+            : word67108864 word33554432 word33554432 ;
+            : word134217728 word67108864 word67108864 ;
+            ",
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_nested_if() {
+        run_code_and_assert_stack_equals(
+            " : f
+                if
+                    if 1 else 2 then
+                else
+                    drop 3
+                then ;
+            -1 -1 f
+            0 -1 f
+            0 0 f ",
+            &[1, 2, 3],
+        );
+    }
+
+    #[test]
+    fn test_nested_if_else() {
+        run_code_and_assert_stack_equals(
+            "
+            : f
+            dup 0 = if
+                drop 2
+            else dup 1 = if
+                drop 3
+            else
+                drop 4
+            then then ;
+            0 f
+            1 f
+            2 f
+            ",
+            &[2, 3, 4],
         );
     }
 }

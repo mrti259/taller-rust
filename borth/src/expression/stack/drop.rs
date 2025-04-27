@@ -1,5 +1,6 @@
 use crate::{context::*, errors::*};
 
+/// Pop the top value from the stack.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     ctx.pop_value()?;
     Ok(())
@@ -8,7 +9,7 @@ pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::context::BorthItem;
 
     fn create_context() -> BorthContext {
         BorthContext::with_stack_size(10)
@@ -21,23 +22,23 @@ mod tests {
     }
 
     #[test]
-    fn test1_drop() {
+    fn test1_drop_all() {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "", &[]);
+        ctx.test(&[], "");
     }
 
     #[test]
-    fn test2_drop() {
+    fn test2_drop_last() {
         let mut ctx = create_context();
         push_to_stack(&mut ctx, &[1, 2]);
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[1], "", &[]);
+        ctx.test(&[1], "");
     }
 
     #[test]
-    fn test3_stack_underflow() {
+    fn test3_stack_underflow_empty() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Err(BorthError::StackUnderflow));
     }

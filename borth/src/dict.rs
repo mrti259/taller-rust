@@ -1,20 +1,22 @@
-use crate::{
-    context::*,
-    errors::*,
-    expression::*,
-    expression::{arithmetic::*, booleans::*, conditionals::*, output::*, stack::*},
-    stack::*,
+use super::{
+    context::BorthItem,
+    expression::{arithmetic::*, booleans::*, output::*, specials::*, stack::*, *},
+    parser::BorthIterator,
 };
 use std::{collections::HashMap, rc::Rc};
 
+/// Store words and their definitions
 pub struct BorthDict {
     words: HashMap<String, Rc<BorthExpression>>,
+    word_created: Rc<BorthExpression>,
 }
 
 impl BorthDict {
+    /// Create a new BorthDict instance with builtin words
     pub fn new() -> Self {
         let mut this = Self {
             words: HashMap::new(),
+            word_created: Rc::new(BorthExpression::WordCreated),
         };
         this.init_words();
         this
@@ -41,294 +43,181 @@ impl BorthDict {
         self.add(".", BorthExpression::Operation(dot::call));
         self.add("emit", BorthExpression::Operation(emit::call));
         self.add("cr", BorthExpression::Operation(cr::call));
-        self.add(
-            ".\"",
-            BorthExpression::FunctionWithWhiteSpace(dot_quote::call),
-        );
-        self.add("if", BorthExpression::FunctionWithDict(if_then::call));
-        self.add(":", BorthExpression::FunctionWithMutDict(word_def::call));
     }
 
     // word definition
 
-    pub fn add(&mut self, token: &str, exp: BorthExpression) {
-        self.words.insert(token.to_uppercase(), Rc::new(exp));
+    fn add(&mut self, token: &str, exp: BorthExpression) {
+        self.words.insert(token.to_lowercase(), Rc::new(exp));
     }
 
-    pub fn add_word(&mut self, token: &str, body: Vec<Rc<BorthExpression>>) {
+    /// Add a new word to the dictionary
+    pub fn add_word(&mut self, token: &str, body: Vec<Rc<BorthExpression>>) -> Rc<BorthExpression> {
         self.add(token, BorthExpression::Word(body));
+        Rc::clone(&self.word_created)
     }
 
     // evaluation
 
-    pub fn eval(&self, ctx: &mut BorthContext, token: &str) -> BorthResult<()> {
-        if token.is_empty() {
-            return Ok(());
+    /// Detect the next expression in the iterator
+    pub fn detect_next(&mut self, iterator: &mut BorthIterator) -> Option<Rc<BorthExpression>> {
+        while let Some((word, _)) = iterator.next() {
+            if word.is_empty() {
+                continue;
+            }
+
+            let expression = self.try_detect(word);
+            if expression.is_some() {
+                return expression;
+            }
+
+            return match word.to_lowercase().as_str() {
+                ".\"" => Some(Rc::new(dot_quote::create(iterator))),
+                "if" => Some(Rc::new(if_else_then::create(iterator, self))),
+                ":" => Some(word_def::create(iterator, self)),
+                _ => Some(Rc::new(BorthExpression::UnknownWord(word.to_string()))),
+            };
         }
-        match token.parse::<BorthItem>() {
-            Ok(value) => ctx.push_value(value),
-            _ => self.detect_and_eval_word(ctx, token),
-        }
+        None
     }
 
-    pub fn detect_word(&self, token: &str) -> BorthResult<Rc<BorthExpression>> {
-        let key = &token.to_uppercase();
-        if !self.words.contains_key(key) {
-            return Err(BorthError::UnknownWord(token.to_string()));
+    /// Try to detect a word and return its expression
+    pub fn try_detect(&self, token: &str) -> Option<Rc<BorthExpression>> {
+        if let Some(word) = self.words.get(&token.to_lowercase()) {
+            return Some(Rc::clone(word));
         }
-        let word = &self.words[key];
-        Ok(Rc::clone(word))
-    }
-
-    fn detect_and_eval_word(&self, ctx: &mut BorthContext, token: &str) -> BorthResult<()> {
-        let key = &token.to_uppercase();
-        if !self.words.contains_key(key) {
-            return Err(BorthError::UnknownWord(token.to_string()));
+        if let Ok(value) = token.parse::<BorthItem>() {
+            let expression = BorthExpression::Number(value);
+            return Some(Rc::new(expression));
         }
-        let word = &self.words[key];
-        Self::eval_word(ctx, token, word)
-    }
-
-    fn eval_word(ctx: &mut BorthContext, _token: &str, word: &BorthExpression) -> BorthResult<()> {
-        match word {
-            BorthExpression::Operation(cb) => cb(ctx),
-            BorthExpression::FunctionWithWhiteSpace(cb) => {
-                ctx.push_expression(BorthExpression::FunctionWithWhiteSpace(*cb));
-                Ok(())
-            }
-            BorthExpression::FunctionWithDict(cb) => {
-                ctx.push_expression(BorthExpression::FunctionWithDict(*cb));
-                Ok(())
-            }
-            BorthExpression::FunctionWithMutDict(cb) => {
-                ctx.push_expression(BorthExpression::FunctionWithMutDict(*cb));
-                Ok(())
-            }
-            BorthExpression::Number(value) => ctx.push_value(*value),
-            BorthExpression::Word(body) => {
-                for exp in body.iter() {
-                    Self::eval_word(ctx, _token, exp)?;
-                }
-                Ok(())
-            }
-        }
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::BorthItem;
+    use crate::parser;
 
     fn create_dict() -> BorthDict {
         BorthDict::new()
     }
 
-    fn create_context() -> BorthContext {
-        BorthContext::with_stack_size(10)
+    fn assert_detect(code: &str, expected: &BorthExpression) {
+        let mut dict = create_dict();
+        let tokens = parser::parse_tokens(code);
+        let result = dict.detect_next(&mut tokens.iter());
+        assert!(matches!(result, Some(actual) if actual.as_ref() == expected));
     }
 
-    fn push_to_stack(ctx: &mut BorthContext, items: &[BorthItem]) {
-        for item in items {
-            let _ = ctx.push_value(*item);
-        }
-    }
-
-    fn assert_context_equals(
-        ctx: &BorthContext,
-        stack: &[BorthItem],
-        output: &str,
-        words_stack: &[BorthExpression],
-    ) {
-        ctx.test(stack, output, words_stack);
-    }
-
-    #[test]
-    fn test_stack_underflow() {
-        let mut ctx = create_context();
+    fn assert_unknown_word(token: &str) {
         let dict = create_dict();
-        assert_eq!(dict.eval(&mut ctx, "+"), Err(BorthError::StackUnderflow));
+        assert!(dict.try_detect(token).is_none());
     }
 
     //arithmetic
 
     #[test]
     fn test_add() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[1, 2]);
-        assert_eq!(dict.eval(&mut ctx, "+"), Ok(()));
-        assert_context_equals(&ctx, &[3], "", &[]);
+        assert_detect("+", &BorthExpression::Operation(add::call));
     }
 
     #[test]
     fn test_sub() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[3, 4]);
-        assert_eq!(dict.eval(&mut ctx, "-"), Ok(()));
-        assert_context_equals(&ctx, &[-1], "", &[]);
+        assert_detect("-", &BorthExpression::Operation(sub::call));
     }
 
     #[test]
     fn test_mul() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[3, 4]);
-        assert_eq!(dict.eval(&mut ctx, "*"), Ok(()));
-        assert_context_equals(&ctx, &[12], "", &[]);
+        assert_detect("*", &BorthExpression::Operation(mul::call));
     }
 
     #[test]
     fn test_div() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[8, 2]);
-        assert_eq!(dict.eval(&mut ctx, "/"), Ok(()));
-        assert_context_equals(&ctx, &[4], "", &[]);
+        assert_detect("/", &BorthExpression::Operation(div::call));
     }
 
     //stack manipulation
 
     #[test]
     fn test_dup() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[2]);
-        assert_eq!(dict.eval(&mut ctx, "dup"), Ok(()));
-        assert_context_equals(&ctx, &[2, 2], "", &[]);
+        assert_detect("dup", &BorthExpression::Operation(dup::call));
     }
 
     #[test]
     fn test_drop() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[1, 2, 3]);
-        assert_eq!(dict.eval(&mut ctx, "drop"), Ok(()));
-        assert_context_equals(&ctx, &[1, 2], "", &[]);
+        assert_detect("drop", &BorthExpression::Operation(drop::call));
     }
 
     #[test]
     fn test_swap() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[8, 2]);
-        assert_eq!(dict.eval(&mut ctx, "swap"), Ok(()));
-        assert_context_equals(&ctx, &[2, 8], "", &[]);
+        assert_detect("swap", &BorthExpression::Operation(swap::call));
     }
 
     #[test]
     fn test_over() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[8, 2]);
-        assert_eq!(dict.eval(&mut ctx, "over"), Ok(()));
-        assert_context_equals(&ctx, &[8, 2, 8], "", &[]);
+        assert_detect("over", &BorthExpression::Operation(over::call));
     }
 
     #[test]
     fn test_rot() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[8, 2, 3]);
-        assert_eq!(dict.eval(&mut ctx, "rot"), Ok(()));
-        assert_context_equals(&ctx, &[2, 3, 8], "", &[]);
+        assert_detect("rot", &BorthExpression::Operation(rot::call));
     }
 
     //booleans
 
     #[test]
     fn test_eq() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[1, 1]);
-        assert_eq!(dict.eval(&mut ctx, "="), Ok(()));
-        assert_context_equals(&ctx, &[-1], "", &[]);
+        assert_detect("=", &BorthExpression::Operation(eq::call));
     }
 
     #[test]
     fn test_lt() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[1, 2]);
-        assert_eq!(dict.eval(&mut ctx, "<"), Ok(()));
-        assert_context_equals(&ctx, &[-1], "", &[]);
+        assert_detect("<", &BorthExpression::Operation(lt::call));
     }
 
     #[test]
     fn test_gt() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[2, 3]);
-        assert_eq!(dict.eval(&mut ctx, ">"), Ok(()));
-        assert_context_equals(&ctx, &[0], "", &[]);
+        assert_detect(">", &BorthExpression::Operation(gt::call));
     }
 
     #[test]
     fn test_and() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[-1, -1]);
-        assert_eq!(dict.eval(&mut ctx, "and"), Ok(()));
-        assert_context_equals(&ctx, &[-1], "", &[]);
+        assert_detect("and", &BorthExpression::Operation(and::call));
     }
 
     #[test]
     fn test_or() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[0, 0]);
-        assert_eq!(dict.eval(&mut ctx, "or"), Ok(()));
-        assert_context_equals(&ctx, &[0], "", &[]);
+        assert_detect("or", &BorthExpression::Operation(or::call));
     }
 
     #[test]
     fn test_not() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[0]);
-        assert_eq!(dict.eval(&mut ctx, "not"), Ok(()));
-        assert_context_equals(&ctx, &[-1], "", &[]);
+        assert_detect("not", &BorthExpression::Operation(not::call));
     }
 
     //output
 
     #[test]
     fn test_dot() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[8, 2, 3]);
-        assert_eq!(dict.eval(&mut ctx, "."), Ok(()));
-        assert_context_equals(&ctx, &[8, 2], "3", &[]);
+        assert_detect(".", &BorthExpression::Operation(dot::call));
     }
 
     #[test]
     fn test_emit() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        push_to_stack(&mut ctx, &[97]);
-        assert_eq!(dict.eval(&mut ctx, "emit"), Ok(()));
-        assert_context_equals(&ctx, &[], "a", &[]);
+        assert_detect("emit", &BorthExpression::Operation(emit::call));
     }
 
     #[test]
     fn test_cr() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        assert_eq!(dict.eval(&mut ctx, "cr"), Ok(()));
-        assert_context_equals(&ctx, &[], "\n", &[]);
+        assert_detect("cr", &BorthExpression::Operation(cr::call));
     }
 
     #[test]
     fn test_dot_quote() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        assert_eq!(dict.eval(&mut ctx, ".\""), Ok(()));
-        assert_context_equals(
-            &ctx,
-            &[],
-            "",
-            &[BorthExpression::FunctionWithWhiteSpace(dot_quote::call)],
+        assert_detect(
+            ".\" Hello World!\"",
+            &BorthExpression::DotQuote("Hello World!".into()),
         );
     }
 
@@ -336,14 +225,17 @@ mod tests {
 
     #[test]
     fn test_if_else_then() {
-        let mut ctx = create_context();
-        let dict = create_dict();
-        assert_eq!(dict.eval(&mut ctx, ".\""), Ok(()));
-        assert_context_equals(
-            &ctx,
-            &[],
-            "",
-            &[BorthExpression::FunctionWithWhiteSpace(dot_quote::call)],
+        assert_unknown_word("then");
+        assert_unknown_word("else");
+        assert_detect("if then", &BorthExpression::IfElseThen(vec![], vec![]));
+        assert_detect("if else then", &BorthExpression::IfElseThen(vec![], vec![]));
+        assert_detect(
+            "if 1 then",
+            &BorthExpression::IfElseThen(vec![Rc::new(BorthExpression::Number(1))], vec![]),
+        );
+        assert_detect(
+            "if else 1 then",
+            &BorthExpression::IfElseThen(vec![], vec![Rc::new(BorthExpression::Number(1))]),
         );
     }
 
@@ -351,62 +243,22 @@ mod tests {
 
     #[test]
     fn test_add_word() {
-        let mut ctx = BorthContext::with_stack_size(10);
-        let mut dict = create_dict();
-        dict.add_word(
-            "foo",
-            vec![
-                Rc::new(BorthExpression::Number(1)),
-                Rc::new(BorthExpression::Number(9)),
-                Rc::new(BorthExpression::Operation(add::call)),
-                Rc::new(BorthExpression::Number(5)),
-            ],
-        );
-
-        //before call
-        assert_context_equals(&ctx, &[], "", &[]);
-
-        // after call
-        assert_eq!(dict.eval(&mut ctx, "foo"), Ok(()));
-        assert_context_equals(&ctx, &[10, 5], "", &[]);
-    }
-
-    #[test]
-    fn test_add_word_with_conditional() {
-        let mut ctx = BorthContext::with_stack_size(10);
-        let mut dict = create_dict();
-        dict.add_word(
-            "foo",
-            vec![
-                Rc::new(BorthExpression::Number(1)),
-                Rc::new(BorthExpression::Number(9)),
-                Rc::new(BorthExpression::Operation(add::call)),
-                Rc::new(BorthExpression::Number(5)),
-            ],
-        );
-
-        //before call
-        assert_context_equals(&ctx, &[], "", &[]);
-
-        // after call
-        assert_eq!(dict.eval(&mut ctx, "foo"), Ok(()));
-        assert_context_equals(&ctx, &[10, 5], "", &[]);
+        assert_unknown_word("foo");
+        assert_detect(": foo 1 9 + 5 ;", &BorthExpression::WordCreated);
     }
 
     #[test]
     fn test_case_insensitive() {
-        let mut ctx = BorthContext::with_stack_size(10);
+        let body = vec![
+            Rc::new(BorthExpression::Number(1)),
+            Rc::new(BorthExpression::Number(9)),
+            Rc::new(BorthExpression::Operation(add::call)),
+            Rc::new(BorthExpression::Number(5)),
+        ];
         let mut dict = create_dict();
-        dict.add_word(
-            "foo",
-            vec![
-                Rc::new(BorthExpression::Number(1)),
-                Rc::new(BorthExpression::Number(9)),
-                Rc::new(BorthExpression::Operation(add::call)),
-                Rc::new(BorthExpression::Number(5)),
-            ],
+        dict.add_word("foo", body.clone());
+        assert!(
+            matches!(dict.try_detect("FoO"), Some(actual) if actual.as_ref() == &BorthExpression::Word(body))
         );
-        assert_eq!(dict.eval(&mut ctx, "FoO"), Ok(()));
-        assert_context_equals(&ctx, &[10, 5], "", &[]);
     }
 }

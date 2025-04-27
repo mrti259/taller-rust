@@ -3,6 +3,7 @@ use std::fmt::Display;
 pub type BorthResult<T> = Result<T, BorthError>;
 
 #[derive(Debug, PartialEq)]
+/// Posible errors from a Borth execution
 pub enum BorthError {
     // Common errors:
     StackUnderflow,
@@ -19,6 +20,7 @@ pub enum BorthError {
     CanNotReadCode,
     CanNotWriteFile,
     CanNotWriteToOutput,
+    IncompleteStatement,
     RuntimeError,
 }
 

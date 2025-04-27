@@ -1,5 +1,6 @@
 use crate::{context::*, errors::BorthResult};
 
+/// Print a new line.
 pub fn call(ctx: &mut BorthContext) -> BorthResult<()> {
     ctx.print_char('\n');
     Ok(())
@@ -17,14 +18,14 @@ mod tests {
     fn test1_cr() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "\n", &[]);
+        ctx.test(&[], "\n");
     }
 
     #[test]
-    fn test2_cr() {
+    fn test2_cr_twice() {
         let mut ctx = create_context();
         assert_eq!(call(&mut ctx), Ok(()));
         assert_eq!(call(&mut ctx), Ok(()));
-        ctx.test(&[], "\n\n", &[]);
+        ctx.test(&[], "\n\n");
     }
 }
