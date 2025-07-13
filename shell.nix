@@ -12,6 +12,20 @@ in
       llvmPackages.bintools
       rustup
       cargo-llvm-cov
+      openssl
+
+      wayland
+      wayland-protocols
+      pkg-config
+      libxkbcommon
+      libGL
+      xorg.libX11
+      xorg.libXcursor
+      xorg.libXrandr
+      xorg.libXi
+      xorg.libXinerama
+      fontconfig
+      freetype
     ];
     RUSTC_VERSION = overrides.toolchain.channel;
     # https://github.com/rust-lang/rust-bindgen#environment-variables
@@ -19,6 +33,7 @@ in
     shellHook = ''
       export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
       export PATH=$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/
+      export LD_LIBRARY_PATH=${pkgs.wayland}/lib:${pkgs.xorg.libX11}/lib:${pkgs.libxkbcommon}/lib:${pkgs.libGL}/lib:$LD_LIBRARY_PATH
       '';
     # Add precompiled library to rustc search path
     RUSTFLAGS = (builtins.map (a: ''-L ${a}/lib'') [
