@@ -24,6 +24,7 @@ in
       xorg.libXrandr
       xorg.libXi
       xorg.libXinerama
+      xorg.xhost
       fontconfig
       freetype
     ];
@@ -34,6 +35,8 @@ in
       export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
       export PATH=$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/
       export LD_LIBRARY_PATH=${pkgs.wayland}/lib:${pkgs.xorg.libX11}/lib:${pkgs.libxkbcommon}/lib:${pkgs.libGL}/lib:$LD_LIBRARY_PATH
+      export DISPLAY=:0
+      xhost +local:root
       '';
     # Add precompiled library to rustc search path
     RUSTFLAGS = (builtins.map (a: ''-L ${a}/lib'') [
